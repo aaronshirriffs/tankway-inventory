@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}MDR Inventory — Sign in{% endblock %}
+
+{% block content %}
+<div class="login-wrap">
+  <form class="login-card" method="post" action="{{ url_for('login') }}">
+    <h1>MDR Inventory</h1>
+    <p class="sub">Sign in with your Tankway Tools account</p>
+    {% if error %}<div class="err">{{ error }}</div>{% endif %}
+    <label class="fld" for="username">Username</label>
+    <input id="username" type="text" name="username" autocomplete="username" autofocus required>
+    <label class="fld" for="password">Password</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" required>
+    <button type="submit" class="btn-primary">Sign in</button>
+  </form>
+</div>
+{% endblock %}

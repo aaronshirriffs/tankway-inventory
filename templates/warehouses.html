@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}MDR Inventory — Warehouses{% endblock %}
+
+{% block content %}
+  <div class="page-head">
+    <div>
+      <h1 class="page-title">Warehouses & Locations</h1>
+      <p class="page-subtitle">Set a global display label, lead time, and incoming-stock label for each stock source. These appear in the API <code>availability</code> and <code>incoming</code> fields.</p>
+    </div>
+  </div>
+
+  {% if not odoo_ok %}<div class="banner">{{ odoo_msg }}</div>{% endif %}
+
+  <form method="post" action="{{ url_for('admin_warehouses') }}">
+    <div class="table-wrap">
+      <table class="act">
+        <thead>
+          <tr><th style="width:90px">Selectable</th><th>Stock source</th><th>Type</th><th style="width:220px">Default display label</th><th style="width:120px">Lead time</th><th style="width:200px">Incoming label</th></tr>
+        </thead>
+        <tbody>
+          {% if not sources %}
+            <tr><td colspan="6" class="empty-cell">No stock sources available.</td></tr>
+          {% endif %}
+          {% for s in sources %}
+          <tr>
+            <td><label class="switch"><input type="checkbox" name="enabled__{{ s.key }}" {{ 'checked' if s.enabled else '' }}><span class="track"></span></label></td>
+            <td class="cust">{{ s.name }}</td>
+            <td>{% if s.kind == 'loc' %}<span class="tag loc">partner location</span>{% else %}<span class="tag">warehouse</span>{% endif %}</td>
+            <td><input type="text" name="label__{{ s.key }}" value="{{ s.label }}" placeholder="e.g. AUS — Showtools"></td>
+            <td><input type="text" name="lead__{{ s.key }}" value="{{ s.lead_time }}" placeholder='e.g. 5-7'></td>
+            <td>
+              {% if s.kind == 'wh' %}
+                <input type="text" name="incoming__{{ s.key }}" value="{{ s.incoming_label }}" placeholder='e.g. Due in warehouse'>
+              {% else %}
+                <span class="muted" title="Incoming/forecast stock arrives into a warehouse, not a partner location">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="panel-actions">
+      <button type="submit" class="btn-primary">Save warehouse settings</button>
+    </div>
+    <div class="hint"><strong>Selectable</strong> — when off, this source is hidden from the warehouse-mapping picker when creating/editing API keys. &nbsp;<strong>Lead time</strong> — free text, e.g. <code>5-7</code> (shown as &ldquo;5-7 days&rdquo;); blank = in stock. &nbsp;<strong>Incoming label</strong> — what to call on-order stock arriving into this warehouse; if blank, incoming stock reuses the warehouse&rsquo;s display label.</div>
+  </form>
+{% endblock %}

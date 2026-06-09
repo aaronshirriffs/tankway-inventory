@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ api_name }} — Documentation</title>
+  <style>
+    :root { --bg:#fbfcfe; --ink:#1b2430; --mut:#5a6573; --line:#e3e8ef; --accent:#1d4ed8;
+            --code:#0b1020; --codetxt:#e6edf3; --green:#0f7b46; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink); line-height:1.6;
+           font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; }
+    header { background:linear-gradient(120deg,#0b1020,#1d3a8a); color:#fff; padding:46px 24px; }
+    header .wrap { max-width:820px; margin:0 auto; }
+    header h1 { margin:0 0 6px; font-size:28px; }
+    header p { margin:0; color:#cdd8f0; }
+    .host { font-family:ui-monospace,Menlo,Consolas,monospace; background:rgba(255,255,255,.14);
+            padding:3px 9px; border-radius:6px; }
+    main { max-width:820px; margin:0 auto; padding:34px 24px 80px; }
+    h2 { font-size:20px; margin:38px 0 10px; padding-bottom:6px; border-bottom:1px solid var(--line); }
+    h3 { font-size:15px; margin:24px 0 6px; }
+    code { font-family:ui-monospace,Menlo,Consolas,monospace; background:#eef1f6; padding:2px 6px;
+           border-radius:5px; font-size:13px; }
+    pre { background:var(--code); color:var(--codetxt); padding:16px 18px; border-radius:10px;
+          overflow:auto; font-size:13px; line-height:1.5; }
+    pre code { background:none; padding:0; color:inherit; }
+    .endpoint { display:inline-block; font-family:ui-monospace,monospace; font-size:13px; font-weight:700;
+                background:#e7efff; color:var(--accent); padding:4px 10px; border-radius:6px; }
+    .method { background:var(--green); color:#fff; padding:2px 8px; border-radius:5px; font-size:12px; font-weight:700; }
+    table { width:100%; border-collapse:collapse; margin:12px 0; font-size:14px; }
+    th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+    th { color:var(--mut); font-weight:600; }
+    .muted { color:var(--mut); }
+    .pill { font-size:12px; padding:2px 8px; border-radius:20px; background:#eef1f6; color:var(--mut); }
+    footer { max-width:820px; margin:0 auto; padding:24px; color:var(--mut); font-size:13px; border-top:1px solid var(--line); }
+  </style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>{{ api_name }}</h1>
+    <p>Real-time stock availability · Base URL <span class="host">https://{{ api_host }}</span></p>
+  </div>
+</header>
+<main>
+
+  <h2>Authentication</h2>
+  <p>Every request to <code>/v1/products</code> must include your API key. Two methods are accepted —
+     use whichever suits your client:</p>
+  <h3>1. Query parameter</h3>
+  <pre><code>GET https://{{ api_host }}/v1/products?key=YOUR_API_KEY</code></pre>
+  <h3>2. Bearer token header</h3>
+  <pre><code>GET https://{{ api_host }}/v1/products
+Authorization: Bearer YOUR_API_KEY</code></pre>
+  <p class="muted">Keys are issued to you directly. A key may be disabled or expire; in either case requests
+     return <code>401</code>. Keep your key secret — it identifies your account and controls what you can see.</p>
+
+  <h2><span class="method">GET</span> <span class="endpoint">/v1/products</span></h2>
+  <p>Returns the products visible to your key, each with current on-hand availability grouped into the
+     stock labels configured for your account.</p>
+
+  <h3>Response fields</h3>
+  <table>
+    <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+    <tr><td><code>id</code></td><td>integer</td><td>Stable product identifier.</td></tr>
+    <tr><td><code>name</code></td><td>string</td><td>Product name.</td></tr>
+    <tr><td><code>sku</code></td><td>string · nullable</td><td>Product SKU / internal reference.</td></tr>
+    <tr><td><code>last_updated</code></td><td>string</td><td>UTC timestamp the product was last modified.</td></tr>
+    <tr><td><code>sales_price</code></td><td>number · optional</td><td>Recommended retail (list) unit price. Only present if pricing is enabled for your key.</td></tr>
+    <tr><td><code>your_price</code></td><td>number · optional</td><td>Your account&rsquo;s unit buy price for this product (qty 1), under your assigned pricelist. Only present if a pricelist is assigned to your key.</td></tr>
+    <tr><td><code>stock</code></td><td>object</td><td>On-hand quantity by label, e.g. <code>{ "Available Immediately": 12 }</code>. Keys are the stock labels configured for your account; values are summed on-hand quantities.</td></tr>
+    <tr><td><code>availability</code></td><td>array</td><td>The same stock broken out per label, each with a delivery lead time: <code>{ "label", "qty", "lead_time" }</code>. <code>lead_time</code> is a short text such as <code>"5-7 days"</code>; an empty value means the item is on hand and ready now.</td></tr>
+    <tr><td><code>incoming</code></td><td>array · optional</td><td>Confirmed stock on order but not yet received: <code>{ "quantity", "expected_date", "label" }</code>. Only present if incoming stock is enabled for your key; an empty array means none on order.</td></tr>
+  </table>
+
+  <h3>Example response</h3>
+  <pre><code>{{ example_json }}</code></pre>
+
+  <h3>Availability &amp; lead times</h3>
+  <p>The <code>stock</code> object and the <code>availability</code> array describe the
+     <strong>same quantities</strong> &mdash; <code>stock</code> is the simple <code>{ label: qty }</code>
+     form, while <code>availability</code> adds a <code>lead_time</code> per label. The lead time is a short
+     text such as <code>"5-7 days"</code>; an empty value means the item is on hand and ready to ship
+     (a non-empty value typically indicates stock held at a location with that delivery lead time, for
+     example an overseas partner warehouse). Use whichever form suits your integration.</p>
+  {% if labels %}
+  <p>Stock labels currently in use:</p>
+  <table>
+    <tr><th>Stock label</th><th>Typical lead time</th></tr>
+    {% for lbl, lead in labels %}
+    <tr><td>{{ lbl }}</td><td>{{ lead if lead else 'In stock now' }}</td></tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+
+  <h3>Incoming stock</h3>
+  <p>If incoming stock is enabled for your key, each product includes an <code>incoming</code> array of
+     confirmed purchase orders not yet received. Each entry has a <code>quantity</code>, an
+     <code>expected_date</code> (<code>YYYY-MM-DD</code>), and a <code>label</code> indicating the destination.
+     A product with nothing on order returns <code>"incoming": []</code>. Use this to show customers when
+     out-of-stock items are due back in.</p>
+
+  <h2><span class="method">GET</span> <span class="endpoint">/v1/status</span> <span class="pill">no auth</span></h2>
+  <p>Lightweight health check for monitoring. No API key required.</p>
+  <pre><code>{
+  "api": "{{ api_name }}",
+  "status": "ok",
+  "timestamp": "2026-06-06T14:21:09+12:00"
+}</code></pre>
+  <p class="muted">The timestamp is New Zealand time.</p>
+
+  <h2>Error codes</h2>
+  <table>
+    <tr><th>Status</th><th>Meaning</th><th>Body</th></tr>
+    <tr><td><code>401</code></td><td>Missing, invalid, disabled, or expired API key.</td>
+        <td><code>{ "error": "Invalid or expired API key" }</code></td></tr>
+    <tr><td><code>429</code></td><td>Rate limit exceeded. Retry after the indicated number of seconds.</td>
+        <td><code>{ "error": "Rate limit exceeded", "retry_after_seconds": 30 }</code></td></tr>
+    <tr><td><code>500</code></td><td>Unexpected server error while fulfilling the request.</td>
+        <td><code>{ "error": "Internal server error" }</code></td></tr>
+  </table>
+
+  <h2>Rate limits</h2>
+  <p>Each key has a per-minute limit, a short burst allowance, and a daily cap. Typical limits are around
+     <strong>{{ rpm }} requests/minute</strong>, a burst of <strong>{{ burst }}</strong>, and
+     <strong>{{ rdaily }} per day</strong> (your key may differ). When you exceed a limit you receive
+     <code>429</code> with <code>retry_after_seconds</code> indicating how long to wait before retrying.
+     Build a small backoff into your client to handle this gracefully.</p>
+
+</main>
+<footer>
+  {{ api_name }} · <code>https://{{ api_host }}</code> · For key requests or support, contact your account manager.
+</footer>
+</body>
+</html>

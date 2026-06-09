@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}MDR Inventory — Status{% endblock %}
+
+{% block content %}
+  <div class="page-head">
+    <div>
+      <h1 class="page-title">Status</h1>
+      <p class="page-subtitle">Live health of the inventory API and its Odoo connection</p>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="label">Total keys</div><div class="value v-white">{{ total }}</div></div>
+    <div class="stat"><div class="label">Active</div><div class="value v-green">{{ active }}</div></div>
+    <div class="stat"><div class="label">Requests today</div><div class="value v-accent">{{ req_today }}</div></div>
+    <div class="stat"><div class="label">Rate limit hits</div><div class="value v-amber">{{ rl_today }}</div></div>
+  </div>
+
+  <div class="section-label">Service</div>
+  <div class="info-grid">
+    <div class="info-card">
+      <div class="label">API service</div>
+      <div class="value"><span class="dot ok"></span>Running</div>
+    </div>
+    <div class="info-card">
+      <div class="label">Odoo connection</div>
+      <div class="value">
+        {% if odoo_ok %}<span class="dot ok"></span>Connected{% else %}<span class="dot bad"></span>Unavailable{% endif %}
+      </div>
+      {% if not odoo_ok %}<div class="hint">{{ odoo_msg }}</div>{% endif %}
+    </div>
+    <div class="info-card">
+      <div class="label">Public API</div>
+      <div class="value">{{ api_name }}</div>
+      <div class="hint">https://{{ api_host }}</div>
+    </div>
+    <div class="info-card">
+      <div class="label">Disabled keys</div>
+      <div class="value">{{ disabled }}</div>
+    </div>
+  </div>
+
+  <div class="hint">Server time: {{ now }} (New Zealand). Request/rate-limit counters are in-memory and reset when the service restarts.</div>
+{% endblock %}

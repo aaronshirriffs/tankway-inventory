@@ -1,0 +1,536 @@
+{% extends "base.html" %}
+{% block title %}MDR Inventory — Admin{% endblock %}
+
+{% block content %}
+  <div class="page-head">
+    <div>
+      <h1 class="page-title">API Keys</h1>
+      <p class="page-subtitle">Manage customer API access to the live stock feed</p>
+    </div>
+    <button class="btn-primary" type="button" onclick="toggleCreate()">+ New key</button>
+  </div>
+
+  {% if not odoo_ok %}
+    <div class="banner">{{ odoo_msg }} You can still edit keys, but category/warehouse pickers are empty until Odoo is reachable.</div>
+  {% endif %}
+
+  {# ---------- stat cards ---------- #}
+  {% set active_count = keys.values() | selectattr('enabled') | list | length %}
+  <div class="stats">
+    <div class="stat"><div class="label">Total keys</div><div class="value v-white">{{ keys | length }}</div></div>
+    <div class="stat"><div class="label">Active</div><div class="value v-green">{{ active_count }}</div></div>
+    <div class="stat"><div class="label">Requests today</div><div class="value v-accent" id="stat-req">—</div></div>
+    <div class="stat"><div class="label">Rate limit hits</div><div class="value v-amber" id="stat-rl">—</div></div>
+  </div>
+
+  {# ---------- reusable key form (field names + JS hooks preserved exactly) ---------- #}
+  {% macro key_form(key, action, submit_label) %}
+    {% set sel_cats = (key.allowed_categories if key else []) %}
+    {% set sel_xcats = (key.excluded_categories if (key and key.excluded_categories) else []) %}
+    <form method="post" action="{{ action }}" onsubmit="return submitKeyForm(event, this)"{% if key %} data-stay="1" data-token="{{ key.token }}"{% endif %}>
+      <div class="two-col">
+        {# ----- LEFT ----- #}
+        <div>
+          <div class="col-block">
+            <label class="fld">Customer name</label>
+            <input type="text" name="label" value="{{ key.label if key else '' }}" placeholder="e.g. Showtechnix" required>
+          </div>
+
+          <div class="col-block">
+            <label class="fld">Expiry date (blank = never)</label>
+            <input type="date" name="expiry" value="{{ key.expiry if key and key.expiry else '' }}">
+          </div>
+
+          <div class="col-block">
+            <label class="fld">Pricelist — customer buy price ({{ "your_price" }} in the API)</label>
+            {% set sel_pl = (key.pricelist.id if key and key.pricelist else none) %}
+            <select name="pricelist">
+              <option value="">— None (don't return a buy price) —</option>
+              {% for pl in pricelists %}<option value="{{ pl.id }}" {{ 'selected' if pl.id == sel_pl else '' }}>{{ pl.name }}</option>{% endfor %}
+            </select>
+            <div class="hint">Adds each product's unit price (qty 1) under this Odoo pricelist as <code>your_price</code>.</div>
+          </div>
+
+          {% if key %}
+          <div class="col-block">
+            <label class="fld">API token</label>
+            <div class="ro-token">
+              <input type="text" readonly value="{{ key.token }}" id="rotok-{{ key.token }}">
+              <button type="button" class="btn-ghost" onclick="copyTok('rotok-{{ key.token }}')">Copy</button>
+            </div>
+          </div>
+          {% endif %}
+
+          <div class="col-block">
+            <label class="fld">Categories</label>
+            <div class="chips allowed-chips">
+              {% for c in sel_cats %}
+                <span class="tag">{{ c.name }}<span class="x" onclick="rmChip(this)">×</span><input type="hidden" name="allowed_categories" value="{{ c.id }}"></span>
+              {% endfor %}
+            </div>
+            <div class="chips excluded-chips"{% if not sel_xcats %} style="display:none"{% endif %}>
+              {% for c in sel_xcats %}
+                <span class="tag tag-exclude">− {{ c.name }}<span class="x" onclick="rmChip(this)">×</span><input type="hidden" name="excluded_categories" value="{{ c.id }}"></span>
+              {% endfor %}
+            </div>
+            <button type="button" class="btn-ghost" onclick="openCatModal(this)">+ Choose categories…</button>
+            <div class="hint">Tick a parent (e.g. DISCOUNTED) to include everything under it, then untick anything this customer shouldn't get. Carve-outs show as red − pills. (Excluded SKUs below still apply on top of this.)</div>
+          </div>
+
+          <div class="col-block">
+            <label class="fld">Excluded SKUs (blacklisted even within an allowed category)</label>
+            <div class="chips sku-chips">
+              {% if key %}{% for s in key.excluded_skus %}<span class="tag">{{ s }}<span class="x" onclick="rmSku(this)">×</span></span>{% endfor %}{% endif %}
+            </div>
+            <div style="display:flex; gap:8px;">
+              <input type="text" class="sku-input" placeholder="SKU e.g. ABC-123" onkeydown="if(event.key==='Enter'){event.preventDefault();addSku(this);}">
+              <button type="button" class="btn-ghost" onclick="addSku(this.previousElementSibling)">+ Add SKU</button>
+            </div>
+            <input type="hidden" name="excluded_skus" class="sku-hidden" value="{{ (key.excluded_skus if key else []) | join(',') }}">
+          </div>
+        </div>
+
+        {# ----- RIGHT ----- #}
+        <div>
+          <div class="col-block">
+            <label class="fld">Warehouse → display-label mappings</label>
+            <div class="wh-mappings">
+              <div class="mapping-rows">
+                {% if key %}
+                  {% for m in key.warehouse_mappings %}
+                    {% set mwh_ids = m.warehouses | rejectattr('kind','equalto','loc') | map(attribute='id') | list %}
+                    {% set mloc_ids = m.warehouses | selectattr('kind','equalto','loc') | map(attribute='id') | list %}
+                    <div class="mapping-row">
+                      <div class="wh-group-label">Warehouses</div>
+                      <div class="wh-list">
+                        {% for w in warehouses %}
+                          <label class="wh-chip"><input type="checkbox" class="wh-check" data-kind="wh" value="{{ w.id }}" {{ 'checked' if w.id in mwh_ids else '' }}> {{ w.name }}</label>
+                        {% endfor %}
+                      </div>
+                      {% if locations %}
+                      <div class="wh-group-label">External / partner stock</div>
+                      <div class="wh-list">
+                        {% for l in locations %}
+                          <label class="wh-chip loc"><input type="checkbox" class="wh-check" data-kind="loc" value="{{ l.id }}" {{ 'checked' if l.id in mloc_ids else '' }}> {{ l.complete_name }}</label>
+                        {% endfor %}
+                      </div>
+                      {% endif %}
+                      <div class="map-arrow">
+                        <span class="arr">→</span>
+                        <input type="text" class="map-label" value="{{ m.label }}" placeholder="Customer-facing label (you can note a lead time here)">
+                        <button type="button" class="icon-btn" title="Remove" onclick="this.closest('.mapping-row').remove()">
+                          <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+                        </button>
+                      </div>
+                    </div>
+                  {% endfor %}
+                {% endif %}
+              </div>
+              <button type="button" class="btn-ghost" onclick="addMapping(this)">+ Add mapping row</button>
+              <input type="hidden" name="warehouse_mappings_json" value="[]">
+            </div>
+          </div>
+
+          <div class="col-block">
+            <label class="fld">Rate limits</label>
+            <div class="rate-grid">
+              {% set rd = rate_defaults if rate_defaults is defined else {'per_minute':5,'daily':200,'burst':3} %}
+              <div class="rate-cell"><div class="label">Per minute</div>
+                <input type="number" name="rate_limit_per_minute" min="1" value="{{ key.rate_limit_per_minute if key else rd.per_minute }}"></div>
+              <div class="rate-cell"><div class="label">Daily cap</div>
+                <input type="number" name="rate_limit_daily" min="1" value="{{ key.rate_limit_daily if key else rd.daily }}"></div>
+              <div class="rate-cell"><div class="label">Burst</div>
+                <input type="number" name="burst_allowance" min="0" value="{{ key.burst_allowance if key else rd.burst }}"></div>
+            </div>
+          </div>
+
+          <div class="col-block">
+            <label class="fld">Visibility</label>
+            <div class="toggle-row">
+              <span class="tl">Show sales price</span>
+              <label class="switch"><input type="checkbox" name="show_price" {{ 'checked' if key and key.show_price else '' }}><span class="track"></span></label>
+            </div>
+            <div class="toggle-row">
+              <span class="tl">Show incoming stock</span>
+              <label class="switch"><input type="checkbox" name="show_incoming" {{ 'checked' if key and key.show_incoming else '' }}><span class="track"></span></label>
+            </div>
+            <div class="toggle-row off-feature">
+              <span class="tl">Show last updated <span class="muted">(always included)</span></span>
+              <label class="switch"><input type="checkbox" checked disabled><span class="track"></span></label>
+            </div>
+            <div class="toggle-row off-feature">
+              <span class="tl">Show SKU barcode <span class="muted">(needs backend support)</span></span>
+              <label class="switch"><input type="checkbox" disabled><span class="track"></span></label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-actions">
+        <button type="submit" class="btn-primary">{{ submit_label }}</button>
+        {% if key %}
+        <button type="button" class="btn-ghost" onclick="activity('{{ key.token }}')">Activity log</button>
+        {% endif %}
+      </div>
+
+      {% if key %}
+      <hr class="divider">
+      <button type="button" class="btn-sim" onclick="simulate('{{ key.token }}')">Simulate this key → preview live JSON</button>
+      <div class="sim-panel" id="sim-{{ key.token }}" style="display:none">
+        <pre class="code-block" id="out-{{ key.token }}"></pre>
+        <div class="fetched"><span id="fetched-{{ key.token }}"></span>
+          <a class="topbar-link" href="javascript:void(0)" onclick="simulate('{{ key.token }}')">↻ Refresh</a></div>
+      </div>
+      <div id="actwrap-{{ key.token }}" style="display:none; margin-top:14px"></div>
+      {% endif %}
+    </form>
+  {% endmacro %}
+
+  {# ---------- create panel ---------- #}
+  <div class="config-panel" id="create-panel" style="display:none">
+    <div class="section-label">Create a new API key</div>
+    {{ key_form(None, url_for('create_key'), 'Create key') }}
+  </div>
+
+  {# ---------- keys table ---------- #}
+  <div class="table-wrap">
+    <table class="keys">
+      <thead>
+        <tr><th>Customer</th><th>Token</th><th>Status</th><th>Categories</th><th>Last used</th><th style="text-align:right">Actions</th></tr>
+      </thead>
+      <tbody>
+        {% if not keys %}
+          <tr><td colspan="6" class="empty-cell">No API keys yet. Click “+ New key” to create one.</td></tr>
+        {% endif %}
+        {% for token, key in keys.items() %}
+        <tr class="key-row" id="row-{{ token }}" style="cursor:pointer" onclick="toggleCfg('{{ token }}')" title="Click to edit">
+          <td class="cust">{{ key.label }}</td>
+          <td><span class="token-pill" title="{{ token }}">{{ token }}</span></td>
+          <td>{% if key.enabled %}<span class="pill active">Active</span>{% else %}<span class="pill disabled">Disabled</span>{% endif %}</td>
+          <td>
+            {% for c in key.allowed_categories %}<span class="tag">{{ c.name }}</span>{% endfor %}
+            {% for c in key.excluded_categories %}<span class="tag tag-exclude">− {{ c.name }}</span>{% endfor %}
+            {% if not key.allowed_categories and not key.excluded_categories %}<span class="muted">—</span>{% endif %}
+          </td>
+          <td>{{ key.last_used | nzdatetime }}</td>
+          <td>
+            <div class="row-actions" style="justify-content:flex-end">
+              <button class="icon-btn" type="button" title="Edit" onclick="event.stopPropagation(); toggleCfg('{{ token }}')">
+                <svg viewBox="0 0 24 24"><path d="M4 20h4L18 10l-4-4L4 16z"/><path d="M14 6l4 4"/></svg>
+              </button>
+              <button class="icon-btn" type="button" title="Simulate" onclick="event.stopPropagation(); simulateOpen('{{ token }}')">
+                <svg viewBox="0 0 24 24"><path d="M5 3v18l15-9z"/></svg>
+              </button>
+              <form method="post" action="{{ url_for('remove_key', token=token) }}" style="display:inline"
+                    onclick="event.stopPropagation()"
+                    onsubmit="return confirm('Permanently delete this key? This cannot be undone.')">
+                <button class="icon-btn danger" type="submit" title="Delete">
+                  <svg viewBox="0 0 24 24"><path d="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13"/></svg>
+                </button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        <tr class="config-row" id="cfg-{{ token }}" style="display:none">
+          <td colspan="6" style="background:#0d0d0d; padding:0">
+            <div style="padding:8px 14px 16px">
+              <form method="post" action="{{ url_for('toggle_key', token=token) }}" style="display:inline-block; margin:12px 0 0">
+                <button type="submit" class="btn-ghost">{{ 'Disable key' if key.enabled else 'Enable key' }}</button>
+              </form>
+              {{ key_form(key, url_for('update_key', token=token), 'Save changes') }}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const TOKENS = {{ keys.keys() | list | tojson }};
+
+function toggleCreate(){
+  const p = document.getElementById('create-panel');
+  p.style.display = (p.style.display === 'none') ? 'block' : 'none';
+}
+function showCfg(token, open){
+  // open === true  -> ensure shown; open === false -> ensure hidden; omitted -> toggle
+  const row = document.getElementById('cfg-' + token);
+  if (open === undefined) open = (row.style.display === 'none');
+  row.style.display = open ? 'table-row' : 'none';
+  return open;
+}
+function toggleCfg(token){ showCfg(token); }          // pencil + clicking the customer row
+function simulateOpen(token){ showCfg(token, true); simulate(token); }  // ensure editor open, then run sim
+
+function copyTok(id){ navigator.clipboard.writeText(document.getElementById(id).value ? document.getElementById(id).value.trim() : document.getElementById(id).textContent.trim()); }
+
+/* ----- category chips ----- */
+const CATEGORIES = {{ categories | tojson }};
+function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function rmChip(x){ x.closest('.tag').remove(); }
+
+/* ===== Category tree picker — one multi-select tree drives BOTH the allowed and
+   excluded fields. On Done the ticked set is collapsed to the minimal include /
+   exclude diff (e.g. "all of DISCOUNTED except DEMO" => allowed DISCOUNTED +
+   excluded DEMO), so the pills stay compact. ===== */
+(function(){
+  const CATS = CATEGORIES.slice().sort((a,b)=> a.complete_name<b.complete_name?-1:a.complete_name>b.complete_name?1:0);
+  const byName = {};
+  CATS.forEach(c=>{ c._depth=c.complete_name.split(' / ').length-1; c._leaf=c.complete_name.split(' / ').pop(); byName[c.complete_name]=c; });
+  CATS.forEach(c=>{ const p=c.complete_name.split(' / '); c._parent = p.length>1 ? (byName[p.slice(0,-1).join(' / ')]||null) : null; });
+  const childMap={}; CATS.forEach(c=>{ if(c._parent){ (childMap[c._parent.id]=childMap[c._parent.id]||[]).push(c); } });
+  const kids = c => childMap[c.id]||[];
+  const roots = CATS.filter(c=>!c._parent);
+  const cbx = c => document.getElementById('catcb-'+c.id);
+  const descendants = c => { const pre=c.complete_name+' / '; return CATS.filter(x=>x.complete_name.indexOf(pre)===0); };
+
+  let targetAllowed=null, targetExcluded=null;
+
+  const overlay=document.createElement('div'); overlay.id='catModal';
+  overlay.innerHTML =
+    '<div class="cm-panel">'
+    + '<div class="cm-head"><strong>Choose categories</strong><span class="cm-count" id="cmCount"></span></div>'
+    + '<div class="cm-tools"><input type="text" id="cmSearch" placeholder="Filter…"><button type="button" class="btn-ghost" id="cmAll">Select all</button><button type="button" class="btn-ghost" id="cmNone">Clear all</button></div>'
+    + '<div class="cm-tree" id="cmTree">'
+    + CATS.map(c=>`<label class="cm-row" data-name="${escHtml(c.complete_name).toLowerCase()}" style="padding-left:${8+c._depth*20}px"><input type="checkbox" id="catcb-${c.id}" data-id="${c.id}"><span>${c._depth>0?'<span class="cm-twig">↳</span> ':''}${escHtml(c._leaf)}</span></label>`).join('')
+    + '</div>'
+    + '<div class="cm-foot"><button type="button" class="btn-ghost" id="cmCancel">Cancel</button><button type="button" class="btn-primary" id="cmDone">Done</button></div>'
+    + '</div>';
+
+  const st=document.createElement('style');
+  st.textContent =
+    '#catModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center;}'
+    +'#catModal .cm-panel{background:#15171c;border:1px solid #2a2e37;border-radius:12px;width:min(640px,92vw);max-height:86vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.5);}'
+    +'#catModal .cm-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #2a2e37;}'
+    +'#catModal .cm-count{color:#9aa0aa;font-size:13px;}'
+    +'#catModal .cm-tools{display:flex;gap:8px;padding:12px 18px;border-bottom:1px solid #2a2e37;}'
+    +'#catModal .cm-tools input{flex:1;background:#0f1115;border:1px solid #2a2e37;border-radius:8px;color:#e7e9ee;padding:8px 10px;}'
+    +'#catModal .cm-tree{overflow:auto;padding:6px 10px;}'
+    +'#catModal .cm-row{display:flex;align-items:center;gap:9px;padding:5px 6px;border-radius:6px;cursor:pointer;color:#d7dae1;font-size:14px;}'
+    +'#catModal .cm-row:hover{background:#1d2027;}'
+    +'#catModal .cm-row input{width:16px;height:16px;flex:none;}'
+    +'#catModal .cm-twig{opacity:.4;}'
+    +'#catModal .cm-foot{display:flex;justify-content:flex-end;gap:10px;padding:14px 18px;border-top:1px solid #2a2e37;}'
+    +'.tag.tag-exclude{background:#2a1718;border-color:#5c2b2b;color:#ff9b9b;}';
+  document.head.appendChild(st);
+  if (document.readyState!=='loading') document.body.appendChild(overlay);
+  else document.addEventListener('DOMContentLoaded',()=>document.body.appendChild(overlay));
+
+  function setSubtree(c,val){ const x=cbx(c); if(x){x.checked=val;x.indeterminate=false;} descendants(c).forEach(d=>{const y=cbx(d); if(y){y.checked=val;y.indeterminate=false;}}); }
+  function refreshUp(c){ let p=c._parent; while(p){ const ss=kids(p).map(cbx); const all=ss.every(s=>s.checked&&!s.indeterminate); const any=ss.some(s=>s.checked||s.indeterminate); const x=cbx(p); x.checked=all; x.indeterminate=!all&&any; p=p._parent; } }
+  function recomputeAll(){ CATS.slice().sort((a,b)=>b._depth-a._depth).forEach(c=>{ const ks=kids(c); if(ks.length){ const ss=ks.map(cbx); const all=ss.every(s=>s.checked&&!s.indeterminate); const any=ss.some(s=>s.checked||s.indeterminate); const x=cbx(c); x.checked=all; x.indeterminate=!all&&any; } }); }
+  function count(){ const n=CATS.filter(c=>kids(c).length===0 && cbx(c).checked).length; document.getElementById('cmCount').textContent = n+' product categor'+(n===1?'y':'ies')+' selected'; }
+
+  overlay.addEventListener('change', e=>{ const t=e.target; if(t.matches('input[type=checkbox]')){ const c=CATS.find(x=>String(x.id)===t.dataset.id); if(c){ setSubtree(c,t.checked); refreshUp(c); count(); } } });
+
+  function idsOf(container){ return [...container.querySelectorAll('input[type=hidden]')].map(i=>i.value); }
+  function open(block){
+    targetAllowed = block.querySelector('.allowed-chips');
+    targetExcluded = block.querySelector('.excluded-chips');
+    CATS.forEach(c=>{ const x=cbx(c); x.checked=false; x.indeterminate=false; });
+    // Rebuild the tree state from the stored diff: include the allowed subtrees,
+    // then carve out the excluded subtrees, then settle parent (tri-)states.
+    idsOf(targetAllowed).forEach(v=>{ const c=CATS.find(x=>String(x.id)===v); if(c) setSubtree(c,true); });
+    idsOf(targetExcluded).forEach(v=>{ const c=CATS.find(x=>String(x.id)===v); if(c) setSubtree(c,false); });
+    recomputeAll(); count();
+    const s=document.getElementById('cmSearch'); s.value=''; filter('');
+    overlay.style.display='flex';
+  }
+  function close(){ overlay.style.display='none'; }
+  // Maximal fully-unchecked subtrees inside c (the carve-outs to exclude).
+  function maximalOff(c){ const res=[]; (function rec(n){ kids(n).forEach(k=>{ const x=cbx(k); if(!x.checked&&!x.indeterminate) res.push(k); else if(x.indeterminate) rec(k); }); })(c); return res; }
+  // Minimal include/exclude representation of a node's subtree.
+  function repr(c){
+    const x=cbx(c), ks=kids(c);
+    if(ks.length===0) return x.checked ? {inc:[c],exc:[]} : {inc:[],exc:[]};
+    if(x.checked && !x.indeterminate) return {inc:[c],exc:[]};
+    if(!x.checked && !x.indeterminate) return {inc:[],exc:[]};
+    const B={inc:[],exc:[]}; ks.forEach(k=>{ const r=repr(k); B.inc.push(...r.inc); B.exc.push(...r.exc); });
+    const A={inc:[c],exc:maximalOff(c)};
+    return (A.inc.length+A.exc.length) <= (B.inc.length+B.exc.length) ? A : B;
+  }
+  function renderChips(container, field, list, excl){
+    container.innerHTML='';
+    list.forEach(c=>{ const span=document.createElement('span'); span.className='tag'+(excl?' tag-exclude':''); span.innerHTML=`${excl?'− ':''}${escHtml(c.complete_name)}<span class="x" onclick="rmChip(this)">×</span><input type="hidden" name="${field}" value="${c.id}">`; container.appendChild(span); });
+    if(excl) container.style.display = list.length ? '' : 'none';
+  }
+  function done(){
+    const inc=[], exc=[];
+    roots.forEach(r=>{ const rr=repr(r); inc.push(...rr.inc); exc.push(...rr.exc); });
+    renderChips(targetAllowed, 'allowed_categories', inc, false);
+    renderChips(targetExcluded, 'excluded_categories', exc, true);
+    close();
+  }
+  function filter(q){ q=(q||'').trim().toLowerCase(); overlay.querySelectorAll('.cm-row').forEach(r=>{ r.style.display = !q || r.dataset.name.indexOf(q)>=0 ? '' : 'none'; }); }
+
+  overlay.addEventListener('click', e=>{ if(e.target===overlay) close(); });
+  overlay.querySelector('#cmCancel').onclick=close;
+  overlay.querySelector('#cmDone').onclick=done;
+  overlay.querySelector('#cmAll').onclick=()=>{ CATS.forEach(c=>{const x=cbx(c);x.checked=true;x.indeterminate=false;}); count(); };
+  overlay.querySelector('#cmNone').onclick=()=>{ CATS.forEach(c=>{const x=cbx(c);x.checked=false;x.indeterminate=false;}); count(); };
+  overlay.querySelector('#cmSearch').addEventListener('input',e=>filter(e.target.value));
+
+  window.openCatModal = function(btn){ open(btn.closest('.col-block')); };
+})();
+
+/* ----- SKU chips (submit as comma-joined excluded_skus) ----- */
+function addSku(input){
+  const v = input.value.trim();
+  if (!v) return;
+  const chips = input.closest('.col-block').querySelector('.sku-chips');
+  const span = document.createElement('span');
+  span.className = 'tag';
+  span.innerHTML = `${v}<span class="x" onclick="rmSku(this)">×</span>`;
+  chips.appendChild(span);
+  input.value = '';
+  syncSku(input.closest('.col-block'));
+}
+function rmSku(x){ const block = x.closest('.col-block'); x.closest('.tag').remove(); syncSku(block); }
+function syncSku(block){
+  const vals = [...block.querySelectorAll('.sku-chips .tag')].map(t => t.firstChild.textContent.trim()).filter(Boolean);
+  block.querySelector('.sku-hidden').value = vals.join(',');
+}
+
+/* ----- warehouse mappings (unchanged serialization contract) ----- */
+const WAREHOUSES = {{ warehouses | tojson }};
+const LOCATIONS = {{ locations | tojson }};
+function addMapping(btn){
+  const rows = btn.closest('.wh-mappings').querySelector('.mapping-rows');
+  const div = document.createElement('div');
+  div.className = 'mapping-row';
+  const whBoxes = WAREHOUSES.map(w => `<label class="wh-chip"><input type="checkbox" class="wh-check" data-kind="wh" value="${w.id}"> ${w.name}</label>`).join('');
+  let html = `<div class="wh-group-label">Warehouses</div><div class="wh-list">${whBoxes}</div>`;
+  if (LOCATIONS.length){
+    const locBoxes = LOCATIONS.map(l => `<label class="wh-chip loc"><input type="checkbox" class="wh-check" data-kind="loc" value="${l.id}"> ${l.complete_name}</label>`).join('');
+    html += `<div class="wh-group-label">External / partner stock</div><div class="wh-list">${locBoxes}</div>`;
+  }
+  html += `<div class="map-arrow"><span class="arr">→</span>
+      <input type="text" class="map-label" placeholder="Customer-facing label (you can note a lead time here)">
+      <button type="button" class="icon-btn" title="Remove" onclick="this.closest('.mapping-row').remove()">
+        <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.6"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>`;
+  div.innerHTML = html;
+  rows.appendChild(div);
+}
+function serializeMappings(form){
+  const out = [];
+  let labelWithoutSource = null;
+  form.querySelectorAll('.mapping-row').forEach(r => {
+    const label = r.querySelector('.map-label').value.trim();
+    const sources = [...r.querySelectorAll('.wh-check:checked')].map(c => ({id: parseInt(c.value), kind: c.dataset.kind || 'wh'}));
+    if (!sources.length && !label) return;                 // empty row — ignore
+    if (label && !sources.length) { labelWithoutSource = label; return; }  // mistake — warn
+    out.push({label, sources});                            // sources selected; blank label defaulted server-side
+  });
+  if (labelWithoutSource) {
+    alert('The mapping "' + labelWithoutSource + '" has no warehouse or location ticked.\n\nTick at least one stock source for it, or clear the label, then Save again.');
+    return false;
+  }
+  form.querySelector('input[name=warehouse_mappings_json]').value = JSON.stringify(out);
+  return true;
+}
+
+/* ----- toast / save confirmation ----- */
+function toast(msg, isErr){
+  const t = document.createElement('div');
+  t.className = 'toast' + (isErr ? ' err' : '');
+  t.textContent = msg;
+  document.body.appendChild(t);
+  requestAnimationFrame(() => t.classList.add('show'));
+  setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 250); }, 2600);
+}
+
+/* ----- save handler: edit saves stay in place (AJAX + toast); create reloads ----- */
+function submitKeyForm(ev, form){
+  if (!serializeMappings(form)) return false;     // mapping validation (blocks submit)
+  if (!form.dataset.stay) return true;            // create: normal submit -> reload so the new key shows
+  ev.preventDefault();
+  const btn = form.querySelector('button[type=submit]');
+  if (btn) btn.disabled = true;
+  fetch(form.action, { method: 'POST', body: new FormData(form),
+                       headers: { 'X-Requested-With': 'fetch' }, credentials: 'same-origin' })
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json().catch(() => ({})); })
+    .then(j => {
+      toast('Changes saved successfully');
+      // Keep the summary row in sync without a full reload (e.g. renamed customer).
+      const tok = form.dataset.token;
+      const li = form.querySelector('input[name=label]');
+      const label = (j && j.label) || (li && li.value);
+      if (tok && label) {
+        const row = document.getElementById('row-' + tok);
+        const cell = row && row.querySelector('.cust');
+        if (cell) cell.textContent = label;
+      }
+    })
+    .catch(e => toast('Save failed — ' + e.message, true))
+    .finally(() => { if (btn) btn.disabled = false; });
+  return false;
+}
+
+/* ----- simulate (live JSON preview) ----- */
+async function simulate(token){
+  const panel = document.getElementById('sim-' + token);
+  const el = document.getElementById('out-' + token);
+  if (panel) panel.style.display = 'block';
+  el.textContent = 'Querying Odoo live…';
+  try {
+    const r = await fetch('/inventory/keys/' + encodeURIComponent(token) + '/simulate');
+    const j = await r.json();
+    el.textContent = JSON.stringify(j, null, 2);
+    const f = document.getElementById('fetched-' + token);
+    if (f) f.textContent = 'Last fetched: ' + new Date().toLocaleString();
+  } catch(e){ el.textContent = 'Error: ' + e; }
+}
+
+/* ----- NZ-local date helpers (timestamps are stored UTC) ----- */
+function nzDateKey(iso){ // -> 'YYYY-MM-DD' in NZ time, for "today" comparisons
+  const d = iso ? new Date(iso) : new Date();
+  return isNaN(d.getTime()) ? '' : new Intl.DateTimeFormat('en-CA', {timeZone:'Pacific/Auckland'}).format(d);
+}
+function fmtNZ(iso){ // -> '11:41am, 6th June 2026'
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  const parts = new Intl.DateTimeFormat('en-NZ', {timeZone:'Pacific/Auckland', day:'numeric', month:'long', year:'numeric', hour:'numeric', minute:'2-digit', hour12:true}).formatToParts(d);
+  const g = t => (parts.find(p => p.type === t) || {}).value || '';
+  const day = parseInt(g('day'), 10);
+  const suf = (day % 100 >= 11 && day % 100 <= 13) ? 'th' : ({1:'st',2:'nd',3:'rd'}[day % 10] || 'th');
+  const ap = g('dayPeriod').toLowerCase().replace(/[^a-z]/g, '');  // 'a.m.' -> 'am'
+  return `${g('hour')}:${g('minute')}${ap}, ${day}${suf} ${g('month')} ${g('year')}`;
+}
+
+/* ----- per-key activity log ----- */
+async function activity(token){
+  const wrap = document.getElementById('actwrap-' + token);
+  wrap.style.display = 'block'; wrap.innerHTML = '<div class="muted">Loading…</div>';
+  try {
+    const r = await fetch('/inventory/keys/' + encodeURIComponent(token) + '/activity');
+    const j = await r.json();
+    if (!j.activity.length){ wrap.innerHTML = '<div class="muted">No activity recorded yet.</div>'; return; }
+    let rows = j.activity.map(a =>
+      `<tr><td>${fmtNZ(a.timestamp)}</td><td>${a.ip}</td><td>${a.product_count}</td><td>${a.rate_limited ? '⚠ throttled' : 'ok'}</td></tr>`).join('');
+    wrap.innerHTML = `<table class="act"><thead><tr><th>Timestamp (NZ)</th><th>IP</th><th>Products</th><th>Rate limit</th></tr></thead><tbody>${rows}</tbody></table>`;
+  } catch(e){ wrap.innerHTML = '<div class="muted">Error: ' + e + '</div>'; }
+}
+
+/* ----- aggregate stat cards from activity endpoints (frontend only) ----- */
+(async function loadStats(){
+  if (!TOKENS.length){ document.getElementById('stat-req').textContent = '0'; document.getElementById('stat-rl').textContent = '0'; return; }
+  const today = nzDateKey();
+  let req = 0, rl = 0;
+  await Promise.all(TOKENS.map(async t => {
+    try {
+      const r = await fetch('/inventory/keys/' + encodeURIComponent(t) + '/activity');
+      const j = await r.json();
+      (j.activity || []).forEach(a => {
+        if (nzDateKey(a.timestamp) === today){ req++; if (a.rate_limited) rl++; }
+      });
+    } catch(e){}
+  }));
+  document.getElementById('stat-req').textContent = req;
+  document.getElementById('stat-rl').textContent = rl;
+})();
+</script>
+{% endblock %}

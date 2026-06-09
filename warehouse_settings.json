@@ -1,0 +1,49 @@
+{
+  "wh:3": {
+    "label": "Available Immediately",
+    "lead_time": "0",
+    "enabled": true,
+    "incoming_label": "Incoming Local Stock"
+  },
+  "wh:4": {
+    "label": "",
+    "lead_time": "",
+    "enabled": false
+  },
+  "wh:1": {
+    "label": "Available Immediately",
+    "lead_time": "0",
+    "enabled": true,
+    "incoming_label": "Incoming Local Stock"
+  },
+  "loc:52": {
+    "label": "",
+    "lead_time": "",
+    "enabled": false
+  },
+  "loc:50": {
+    "label": "",
+    "lead_time": "",
+    "enabled": false
+  },
+  "loc:49": {
+    "label": "Secondary Warehouse Availability",
+    "lead_time": "5-7",
+    "enabled": true
+  },
+  "loc:51": {
+    "label": "",
+    "lead_time": "",
+    "enabled": false
+  },
+  "loc:46": {
+    "label": "",
+    "lead_time": "",
+    "enabled": false
+  },
+  "loc:53": {
+    "label": "",
+    "lead_time": "",
+    "enabled": false
+  }
+}

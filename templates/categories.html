@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}MDR Inventory — Categories{% endblock %}
+
+{% block content %}
+  <div class="page-head">
+    <div>
+      <h1 class="page-title">Available Categories</h1>
+      <p class="page-subtitle">Choose which product categories appear in the key-generation pickers. Leave all unticked to allow every category. Toggling a parent category selects or deselects all of its sub-categories.</p>
+    </div>
+  </div>
+
+  {% if not odoo_ok %}<div class="banner">{{ odoo_msg }}</div>{% endif %}
+
+  <form method="post" action="{{ url_for('admin_categories') }}">
+    <div class="panel-actions" style="margin:0 0 14px">
+      <button type="button" class="btn-ghost" onclick="setAll(true)">Select all</button>
+      <button type="button" class="btn-ghost" onclick="setAll(false)">Clear all</button>
+      <span class="hint" id="count"></span>
+    </div>
+    <div class="table-wrap">
+      <table class="act">
+        <thead><tr><th style="width:60px"></th><th>Category</th></tr></thead>
+        <tbody>
+          {% if not categories %}
+            <tr><td colspan="2" class="empty-cell">No categories available.</td></tr>
+          {% endif %}
+          {% for c in categories %}
+          {% set depth = c.complete_name.split(' / ')|length - 1 %}
+          {% set leaf = c.complete_name.split(' / ')|last %}
+          <tr>
+            <td><label class="switch"><input type="checkbox" class="cat-cb" name="available" value="{{ c.id }}" data-name="{{ c.complete_name }}" {{ 'checked' if c.id in selected_ids else '' }} onchange="onToggle(this)"><span class="track"></span></label></td>
+            <td style="padding-left: calc(14px + {{ depth }} * 22px)" title="{{ c.complete_name }}">
+              {%- if depth > 0 %}<span style="opacity:.4">↳</span> {% endif -%}
+              {{ leaf }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="panel-actions">
+      <button type="submit" class="btn-primary">Save available categories</button>
+    </div>
+  </form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function setAll(v){ document.querySelectorAll('.cat-cb').forEach(c => c.checked = v); updateCount(); }
+// Toggling a parent cascades the same checked state to every descendant.
+// Hierarchy is derived from the " / " path in each category's complete_name.
+function cascade(cb){
+  const prefix = cb.dataset.name + ' / ';
+  document.querySelectorAll('.cat-cb').forEach(o => {
+    if (o !== cb && o.dataset.name && o.dataset.name.startsWith(prefix)) o.checked = cb.checked;
+  });
+}
+function onToggle(cb){ cascade(cb); updateCount(); }
+function updateCount(){
+  const n = document.querySelectorAll('.cat-cb:checked').length;
+  const total = document.querySelectorAll('.cat-cb').length;
+  document.getElementById('count').textContent = n ? (n + ' of ' + total + ' selected') : 'None selected — all categories will be available';
+}
+updateCount();
+</script>
+{% endblock %}

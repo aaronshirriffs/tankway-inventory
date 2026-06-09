@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}MDR Inventory — Access denied{% endblock %}
+
+{% block content %}
+<div class="login-wrap">
+  <div class="login-card" style="text-align:center; width:380px">
+    <div style="display:flex; justify-content:center; margin-bottom:14px; color:var(--accent)">
+      <svg viewBox="0 0 24 24" style="width:34px;height:34px;stroke:currentColor;fill:none;stroke-width:1.6">
+        <rect x="5" y="11" width="14" height="9" rx="1"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>
+      </svg>
+    </div>
+    <h1>Admin access required</h1>
+    <p class="sub">This section requires admin access.</p>
+    <a class="btn-primary" href="{{ url_for('admin_dashboard') }}" style="display:inline-block; text-decoration:none; margin-top:8px">← Back to API Keys</a>
+  </div>
+</div>
+{% endblock %}

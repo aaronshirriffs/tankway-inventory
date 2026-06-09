@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}MDR Inventory — Activity Log{% endblock %}
+
+{% block content %}
+  <div class="page-head">
+    <div>
+      <h1 class="page-title">Activity Log</h1>
+      <p class="page-subtitle">Recent API requests across all keys (newest first)</p>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table class="act">
+      <thead>
+        <tr><th>Timestamp (NZ)</th><th>Customer</th><th>IP</th><th>Products</th><th>Rate limit</th></tr>
+      </thead>
+      <tbody>
+        {% if not rows %}
+          <tr><td colspan="5" class="empty-cell">No activity recorded yet.</td></tr>
+        {% endif %}
+        {% for a in rows %}
+        <tr>
+          <td>{{ a.timestamp | nzdatetime }}</td>
+          <td class="cust">{{ a.label }}</td>
+          <td>{{ a.ip }}</td>
+          <td>{{ a.product_count }}</td>
+          <td>{% if a.rate_limited %}<span class="pill" style="background:#2a1708;color:#f0a020">⚠ throttled</span>{% else %}<span class="pill active">ok</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

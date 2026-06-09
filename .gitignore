@@ -1,0 +1,44 @@
+# Python virtualenv
+venv/
+.venv/
+env/
+
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Secrets / credentials  (NEVER commit)
+.env
+.env.*
+*.env
+!.env.example
+*token*.json
+gmail_token*.json
+keys.json
+*secret*
+credential*.json
+client_secret*.json
+
+# Runtime data: DBs, OAuth tokens, uploads, per-user data, app state — NOT code
+data/
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+*.log.*
+
+# Locks / runtime state
+*.lock
+*.pid
+
+# Backup / junk
+.bak
+.bak*
+*.bak
+*~

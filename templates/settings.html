@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}MDR Inventory — Settings{% endblock %}
+
+{% block content %}
+  <div class="page-head">
+    <div>
+      <h1 class="page-title">Settings</h1>
+      <p class="page-subtitle">Global defaults applied to newly created API keys</p>
+    </div>
+  </div>
+
+  <form method="post" action="{{ url_for('admin_settings') }}">
+    <div class="config-panel" style="max-width:560px">
+      <div class="section-label">Default rate limits for new keys</div>
+      <div class="rate-grid">
+        <div class="rate-cell"><div class="label">Per minute</div>
+          <input type="number" name="default_rate_limit_per_minute" min="1" value="{{ settings.default_rate_limit_per_minute }}"></div>
+        <div class="rate-cell"><div class="label">Daily cap</div>
+          <input type="number" name="default_rate_limit_daily" min="1" value="{{ settings.default_rate_limit_daily }}"></div>
+        <div class="rate-cell"><div class="label">Burst</div>
+          <input type="number" name="default_burst_allowance" min="0" value="{{ settings.default_burst_allowance }}"></div>
+      </div>
+      <div class="hint">These prefill the “+ New key” form and are used when a field is left blank. Existing keys are not changed.</div>
+      <div class="panel-actions">
+        <button type="submit" class="btn-primary">Save settings</button>
+      </div>
+    </div>
+  </form>
+
+  <div class="config-panel" style="max-width:560px">
+    <div class="section-label">Documentation</div>
+    <div class="hint" style="margin:0 0 14px">Download the latest API documentation (Word format).</div>
+    <div class="panel-actions" style="margin-top:0">
+      <a class="btn-ghost" href="{{ url_for('download_doc', name='customer-guide.docx') }}">⬇ Customer Guide (.docx)</a>
+      <a class="btn-ghost" href="{{ url_for('download_doc', name='internal-reference.docx') }}">⬇ Internal Reference (.docx)</a>
+    </div>
+  </div>
+{% endblock %}

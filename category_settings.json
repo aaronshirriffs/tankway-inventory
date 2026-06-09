@@ -1,0 +1,336 @@
+{
+  "available": [
+    {
+      "id": 310,
+      "complete_name": "DISCOUNTED"
+    },
+    {
+      "id": 238,
+      "complete_name": "DISCOUNTED / AVE"
+    },
+    {
+      "id": 239,
+      "complete_name": "DISCOUNTED / BATTERY"
+    },
+    {
+      "id": 243,
+      "complete_name": "DISCOUNTED / CBI"
+    },
+    {
+      "id": 343,
+      "complete_name": "DISCOUNTED / CBI / DMX Cables"
+    },
+    {
+      "id": 361,
+      "complete_name": "DISCOUNTED / CBI / DMX Shuttle Snake System"
+    },
+    {
+      "id": 344,
+      "complete_name": "DISCOUNTED / CBI / Guitar cables"
+    },
+    {
+      "id": 373,
+      "complete_name": "DISCOUNTED / CBI / In Ear Splits"
+    },
+    {
+      "id": 342,
+      "complete_name": "DISCOUNTED / CBI / Microphone Cables"
+    },
+    {
+      "id": 348,
+      "complete_name": "DISCOUNTED / CBI / Miscellaneous cables"
+    },
+    {
+      "id": 345,
+      "complete_name": "DISCOUNTED / CBI / Network cables"
+    },
+    {
+      "id": 346,
+      "complete_name": "DISCOUNTED / CBI / Snakes & Looms"
+    },
+    {
+      "id": 347,
+      "complete_name": "DISCOUNTED / CBI / Speaker cables"
+    },
+    {
+      "id": 250,
+      "complete_name": "DISCOUNTED / CHAMSYS"
+    },
+    {
+      "id": 308,
+      "complete_name": "DISCOUNTED / CHAUVET"
+    },
+    {
+      "id": 254,
+      "complete_name": "DISCOUNTED / CHAUVET / CHAUVETDJ"
+    },
+    {
+      "id": 246,
+      "complete_name": "DISCOUNTED / CHAUVET / CHAUVETDJ / CHA-DJCBL"
+    },
+    {
+      "id": 247,
+      "complete_name": "DISCOUNTED / CHAUVET / CHAUVETDJ / EVE"
+    },
+    {
+      "id": 255,
+      "complete_name": "DISCOUNTED / CHAUVET / CHAUVETPRO"
+    },
+    {
+      "id": 252,
+      "complete_name": "DISCOUNTED / CHAUVET / CHAUVETPRO / CHA-PROCBL"
+    },
+    {
+      "id": 430,
+      "complete_name": "DISCOUNTED / CHAUVET / CHAUVETVIDEO"
+    },
+    {
+      "id": 251,
+      "complete_name": "DISCOUNTED / CHAUVET / OVATION"
+    },
+    {
+      "id": 253,
+      "complete_name": "DISCOUNTED / CHAUVET / TRUSST"
+    },
+    {
+      "id": 265,
+      "complete_name": "DISCOUNTED / EURODECK"
+    },
+    {
+      "id": 266,
+      "complete_name": "DISCOUNTED / EUROTRUSS"
+    },
+    {
+      "id": 323,
+      "complete_name": "DISCOUNTED / GLP"
+    },
+    {
+      "id": 378,
+      "complete_name": "DISCOUNTED / GLP / ACCESSORIES"
+    },
+    {
+      "id": 379,
+      "complete_name": "DISCOUNTED / GLP / ACCESSORIES / ARCHITECTURE & INSTALLATION"
+    },
+    {
+      "id": 380,
+      "complete_name": "DISCOUNTED / GLP / ACCESSORIES / RAIN PROTECTION"
+    },
+    {
+      "id": 381,
+      "complete_name": "DISCOUNTED / GLP / ARCHITECTURE & INSTALLATION"
+    },
+    {
+      "id": 382,
+      "complete_name": "DISCOUNTED / GLP / CABLES & ADAPTERS"
+    },
+    {
+      "id": 376,
+      "complete_name": "DISCOUNTED / GLP / FLIGHTCASES & PACKAGING"
+    },
+    {
+      "id": 383,
+      "complete_name": "DISCOUNTED / GLP / FUSION"
+    },
+    {
+      "id": 384,
+      "complete_name": "DISCOUNTED / GLP / FUSION / FLIGHTCASES & PACKAGING"
+    },
+    {
+      "id": 385,
+      "complete_name": "DISCOUNTED / GLP / FUSION / MOVING LIGHTS"
+    },
+    {
+      "id": 388,
+      "complete_name": "DISCOUNTED / GLP / FUSION / STATIC LIGHTS"
+    },
+    {
+      "id": 375,
+      "complete_name": "DISCOUNTED / GLP / GLP PARTS"
+    },
+    {
+      "id": 377,
+      "complete_name": "DISCOUNTED / GLP / MOVING LIGHTS"
+    },
+    {
+      "id": 386,
+      "complete_name": "DISCOUNTED / GLP / RAIN PROTECTION"
+    },
+    {
+      "id": 387,
+      "complete_name": "DISCOUNTED / GLP / STATIC LIGHTS"
+    },
+    {
+      "id": 389,
+      "complete_name": "DISCOUNTED / GLP / STROBE LIGHTS"
+    },
+    {
+      "id": 541,
+      "complete_name": "DISCOUNTED / HAZEBASE"
+    },
+    {
+      "id": 359,
+      "complete_name": "DISCOUNTED / HOLLYLAND"
+    },
+    {
+      "id": 272,
+      "complete_name": "DISCOUNTED / ILUMINARC"
+    },
+    {
+      "id": 327,
+      "complete_name": "DISCOUNTED / LASERWORLD"
+    },
+    {
+      "id": 281,
+      "complete_name": "DISCOUNTED / MDR"
+    },
+    {
+      "id": 545,
+      "complete_name": "DISCOUNTED / MDR / DMX Cables"
+    },
+    {
+      "id": 544,
+      "complete_name": "DISCOUNTED / MDR / Hybrid Cables"
+    },
+    {
+      "id": 548,
+      "complete_name": "DISCOUNTED / MDR / Microphone Cables"
+    },
+    {
+      "id": 547,
+      "complete_name": "DISCOUNTED / MDR / Power Cables"
+    },
+    {
+      "id": 546,
+      "complete_name": "DISCOUNTED / MDR / SDI Cables"
+    },
+    {
+      "id": 543,
+      "complete_name": "DISCOUNTED / MDR / Super Strobe"
+    },
+    {
+      "id": 284,
+      "complete_name": "DISCOUNTED / MIRROR"
+    },
+    {
+      "id": 293,
+      "complete_name": "DISCOUNTED / POWERCABLE"
+    },
+    {
+      "id": 294,
+      "complete_name": "DISCOUNTED / PROCON"
+    },
+    {
+      "id": 358,
+      "complete_name": "DISCOUNTED / PUSH UP DRAPE"
+    },
+    {
+      "id": 503,
+      "complete_name": "DISCOUNTED / SEETRONIC"
+    },
+    {
+      "id": 520,
+      "complete_name": "DISCOUNTED / SEETRONIC / Adaptors"
+    },
+    {
+      "id": 528,
+      "complete_name": "DISCOUNTED / SEETRONIC / BNC"
+    },
+    {
+      "id": 542,
+      "complete_name": "DISCOUNTED / SEETRONIC / Bulk Cable"
+    },
+    {
+      "id": 527,
+      "complete_name": "DISCOUNTED / SEETRONIC / HDMI"
+    },
+    {
+      "id": 524,
+      "complete_name": "DISCOUNTED / SEETRONIC / Plugs & Jacks"
+    },
+    {
+      "id": 521,
+      "complete_name": "DISCOUNTED / SEETRONIC / Power Connectors"
+    },
+    {
+      "id": 529,
+      "complete_name": "DISCOUNTED / SEETRONIC / Power Connectors / IP65 Waterproof"
+    },
+    {
+      "id": 530,
+      "complete_name": "DISCOUNTED / SEETRONIC / Power Connectors / IP67 Waterproof"
+    },
+    {
+      "id": 525,
+      "complete_name": "DISCOUNTED / SEETRONIC / RCA"
+    },
+    {
+      "id": 536,
+      "complete_name": "DISCOUNTED / SEETRONIC / RJ45"
+    },
+    {
+      "id": 539,
+      "complete_name": "DISCOUNTED / SEETRONIC / RJ45 / Couplers"
+    },
+    {
+      "id": 537,
+      "complete_name": "DISCOUNTED / SEETRONIC / RJ45 / Indoor Series"
+    },
+    {
+      "id": 538,
+      "complete_name": "DISCOUNTED / SEETRONIC / RJ45 / Outdoor Series"
+    },
+    {
+      "id": 523,
+      "complete_name": "DISCOUNTED / SEETRONIC / Speakon"
+    },
+    {
+      "id": 522,
+      "complete_name": "DISCOUNTED / SEETRONIC / XLR & DMX Connectors"
+    },
+    {
+      "id": 532,
+      "complete_name": "DISCOUNTED / SEETRONIC / XLR & DMX Connectors / M Series Sockets"
+    },
+    {
+      "id": 531,
+      "complete_name": "DISCOUNTED / SEETRONIC / XLR & DMX Connectors / M Series plugs"
+    },
+    {
+      "id": 535,
+      "complete_name": "DISCOUNTED / SEETRONIC / XLR & DMX Connectors / Stainless Steel"
+    },
+    {
+      "id": 533,
+      "complete_name": "DISCOUNTED / SEETRONIC / XLR & DMX Connectors / W Series IP65 Waterproof"
+    },
+    {
+      "id": 534,
+      "complete_name": "DISCOUNTED / SEETRONIC / XLR & DMX Connectors / W Series IP67 Waterproof"
+    },
+    {
+      "id": 298,
+      "complete_name": "DISCOUNTED / SHOWCASE"
+    },
+    {
+      "id": 352,
+      "complete_name": "DISCOUNTED / SHOWCASE ACCESSORIES"
+    },
+    {
+      "id": 301,
+      "complete_name": "DISCOUNTED / SPARKULAR"
+    },
+    {
+      "id": 331,
+      "complete_name": "DISCOUNTED / Special Packages"
+    },
+    {
+      "id": 302,
+      "complete_name": "DISCOUNTED / TAPE"
+    },
+    {
+      "id": 304,
+      "complete_name": "DISCOUNTED / TOURPRO"
+    }
+  ]
+}

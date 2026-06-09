@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}MDR Inventory API{% endblock %}</title>
+  <style>
+    :root{
+      --bg:#0a0a0a; --bar:#111111; --card:#161616; --input:#111111;
+      --line:#1e1e1e; --line2:#2a2a2a; --row:#141414;
+      --txt:#eeeeee; --txt2:#cfcfcf; --mut:#9a9a9a; --mut2:#8a8a8a;
+      --accent:#e8401c; --green:#4caf7d; --amber:#f0a020;
+      --pill-on-bg:#0d2e1a; --pill-on-tx:#4caf7d;
+      --pill-off-bg:#1e1e1e; --pill-off-tx:#9a9a9a;
+      --tag-bg:#1e0c04; --tag-tx:#d2773b;
+      --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+    }
+    *{box-sizing:border-box;}
+    html,body{margin:0;}
+    body{background:var(--bg); color:var(--txt); font-size:14px; line-height:1.5;
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+      -webkit-font-smoothing:antialiased;}
+    a{color:inherit; text-decoration:none;}
+
+    /* ---------- topbar ---------- */
+    .topbar{height:56px; background:var(--bar); border-bottom:1px solid var(--line2);
+      display:flex; align-items:center; justify-content:space-between; padding:0 20px;
+      position:sticky; top:0; z-index:20;}
+    .brand{display:flex; align-items:center; gap:12px;}
+    .logo-img{height:30px; width:auto; display:block;}
+    .logo-fb{width:34px; height:34px; border-radius:7px; background:var(--accent); color:#fff;
+      font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center;}
+    .brand-text .t1{font-size:15px; font-weight:500; color:#fff; line-height:1.2;}
+    .brand-text .t2{font-size:12px; color:#b0b0b0; line-height:1.2;}
+    .topbar-right{display:flex; align-items:center; gap:12px;}
+    .admin-badge{background:var(--accent); color:#fff; font-size:12px; font-weight:500;
+      padding:2px 10px; border-radius:20px;}
+    .topbar-user{color:var(--txt2); font-size:14px;}
+    /* toast / save confirmation */
+    .toast{position:fixed; right:22px; bottom:22px; background:#0d2e1a; border:1px solid #1a4a2e;
+      color:var(--green); padding:12px 18px; border-radius:8px; font-size:14px; z-index:1000;
+      opacity:0; transform:translateY(8px); transition:opacity .2s, transform .2s;}
+    .toast.show{opacity:1; transform:translateY(0);}
+    .toast.err{background:#2a1110; border-color:#5a2420; color:#ff9b8f;}
+    .topbar-link{color:var(--mut); font-size:13px;}
+    .topbar-link:hover{color:var(--accent);}
+    .menu-toggle{display:none; background:transparent; border:0; color:var(--txt); cursor:pointer; padding:4px; margin-right:2px;}
+    .menu-toggle svg{width:22px; height:22px; stroke:currentColor; fill:none; stroke-width:2;}
+
+    /* ---------- layout ---------- */
+    .layout{display:flex; min-height:calc(100vh - 56px); align-items:stretch;}
+    .sidebar{width:200px; flex:0 0 200px; background:var(--bar); border-right:1px solid var(--line);
+      padding:18px 12px;}
+    .nav-section{margin-bottom:22px;}
+    .nav-label{font-size:12px; text-transform:uppercase; letter-spacing:1px; color:var(--mut2);
+      padding:0 8px; margin-bottom:8px;}
+    .nav-item{display:flex; align-items:center; gap:10px; font-size:14px; color:#bdbdbd;
+      padding:8px; border-radius:6px; margin-bottom:2px; cursor:pointer;}
+    .nav-item:hover{background:#161616;}
+    .nav-item.active{background:#1a1a1a; color:#fff;}
+    .nav-item.active .nav-ic{color:var(--accent);}
+    .nav-item.disabled{color:#777; cursor:default;}
+    .nav-item.disabled:hover{background:transparent;}
+    .nav-soon{font-size:10px; color:#777; margin-left:auto; border:1px solid #2a2a2a; border-radius:4px; padding:1px 5px;}
+    .nav-item.locked{color:#555; cursor:default;}
+    .nav-item.locked:hover{background:transparent;}
+    .nav-item.locked .nav-ic{color:#555;}
+    .nav-lock{margin-left:auto; display:flex; color:#555;}
+    .nav-lock svg{width:13px; height:13px; stroke:currentColor; fill:none; stroke-width:1.6;}
+    .nav-ic{width:16px; height:16px; flex:0 0 16px; color:var(--mut); display:flex;}
+    .nav-ic svg{width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:1.6;}
+
+    .content{flex:1 1 auto; min-width:0; padding:26px 30px 80px;}
+
+    /* ---------- typography ---------- */
+    .page-title{font-size:20px; font-weight:500; color:var(--txt); margin:0;}
+    .page-subtitle{font-size:14px; color:var(--mut); margin:3px 0 0;}
+    .section-label{font-size:12px; text-transform:uppercase; letter-spacing:1px; color:var(--mut2);
+      margin:0 0 10px;}
+    .page-head{display:flex; align-items:flex-start; justify-content:space-between; gap:16px;
+      margin-bottom:22px;}
+
+    /* ---------- banner ---------- */
+    .banner{background:#241a08; border:1px solid #5a430f; color:var(--amber); padding:10px 14px;
+      border-radius:8px; margin-bottom:20px; font-size:13px;}
+
+    /* ---------- stat cards ---------- */
+    .stats{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:26px;}
+    .stat{background:var(--card); border:0.5px solid var(--line2); border-radius:8px; padding:16px 18px;}
+    .stat .label{font-size:12px; color:var(--mut); margin-bottom:8px;}
+    .stat .value{font-size:24px; font-weight:500; line-height:1;}
+    .v-white{color:#fff;} .v-green{color:var(--green);} .v-accent{color:var(--accent);} .v-amber{color:var(--amber);}
+    .v-mut{color:var(--mut);}
+
+    /* ---------- table ---------- */
+    .table-wrap{border:0.5px solid var(--line); border-radius:8px; overflow:hidden;}
+    table.keys{width:100%; border-collapse:collapse;}
+    table.keys th{background:var(--card); text-align:left; font-size:12px; font-weight:500;
+      text-transform:uppercase; letter-spacing:0.5px; color:var(--mut2); padding:11px 14px;}
+    table.keys td{padding:12px 14px; font-size:14px; color:var(--txt2);
+      border-top:0.5px solid var(--row); vertical-align:middle;}
+    table.keys tbody tr:hover{background:#121212;}
+    .cust{font-size:14px; font-weight:500; color:var(--txt);}
+    .empty-cell{padding:26px 14px; color:var(--mut); font-size:14px; text-align:center;}
+
+    /* ---------- token pill ---------- */
+    .token-pill{font-family:var(--mono); font-size:12px; color:var(--mut2); background:var(--card);
+      border:1px solid #222222; border-radius:4px; padding:3px 8px; max-width:170px;
+      overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; vertical-align:middle;}
+
+    /* ---------- pills / tags ---------- */
+    .pill{font-size:12px; padding:3px 11px; border-radius:20px; display:inline-block;}
+    .pill.active{background:var(--pill-on-bg); color:var(--pill-on-tx);}
+    .pill.disabled{background:var(--pill-off-bg); color:var(--pill-off-tx);}
+    .tag{display:inline-flex; align-items:center; gap:5px; background:var(--tag-bg); color:var(--tag-tx);
+      font-size:12px; padding:3px 8px; border-radius:4px; margin:2px 3px 2px 0;}
+    .tag .x{cursor:pointer; color:var(--tag-tx); opacity:.7; font-size:14px; line-height:1;}
+    .tag .x:hover{opacity:1;}
+    .tag.loc{background:#04141e; color:#3ba0d2;}
+    .muted{color:var(--mut);}
+
+    /* ---------- icon action buttons ---------- */
+    .row-actions{display:flex; gap:6px;}
+    .icon-btn{width:30px; height:30px; border:1px solid #222222; background:transparent; color:var(--mut);
+      border-radius:6px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; padding:0;}
+    .icon-btn svg{width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:1.6;}
+    .icon-btn:hover{color:var(--accent); border-color:var(--accent);}
+
+    /* ---------- inputs ---------- */
+    input[type=text],input[type=number],input[type=date],input[type=password],textarea,select{
+      width:100%; background:var(--input); border:0.5px solid var(--line2); border-radius:6px;
+      padding:8px 10px; color:var(--txt); font-size:13px; font-family:inherit;}
+    textarea{resize:vertical; min-height:54px;}
+    input:focus,textarea:focus,select:focus{outline:none; border-color:var(--accent);}
+    input::placeholder{color:#7a7a7a;}
+    label.fld{display:block; font-size:12px; color:var(--mut); margin:14px 0 6px;}
+    .hint{font-size:12px; color:var(--mut); margin-top:5px;}
+
+    /* ---------- buttons ---------- */
+    .btn-primary{background:var(--accent); color:#fff; border:0; border-radius:6px; padding:8px 16px;
+      font-size:13px; font-weight:500; cursor:pointer; font-family:inherit;}
+    .btn-primary:hover{filter:brightness(1.08);}
+    .btn-ghost{background:transparent; border:1px solid var(--line2); color:#bdbdbd; border-radius:6px;
+      padding:8px 16px; font-size:13px; cursor:pointer; font-family:inherit;}
+    .btn-ghost:hover{color:var(--txt); border-color:var(--mut);}
+    .btn-sim{display:block; width:100%; background:#0d2318; border:1px solid #1a4a2e; color:var(--green);
+      border-radius:6px; padding:10px; font-size:13px; font-weight:500; cursor:pointer; font-family:inherit;}
+    .btn-sim:hover{filter:brightness(1.15);}
+
+    /* ---------- config panel ---------- */
+    .config-panel{background:var(--card); border:0.5px solid var(--line2); border-radius:8px;
+      padding:22px; margin:2px 0 8px;}
+    .two-col{display:grid; grid-template-columns:1fr 1fr; gap:26px;}
+    @media (max-width:880px){.two-col{grid-template-columns:1fr;} .stats{grid-template-columns:1fr 1fr;}}
+    .col-block{margin-bottom:18px;}
+    .ro-token{display:flex; gap:8px; align-items:center;}
+    .ro-token input{font-family:var(--mono); font-size:12px; color:var(--txt2);}
+    .chips{display:flex; flex-wrap:wrap; gap:2px; margin-bottom:8px; min-height:8px;}
+
+    /* warehouse mappings */
+    .mapping-row{border:0.5px solid var(--line2); border-radius:6px; padding:12px; margin-bottom:10px; background:var(--input);}
+    .wh-group-label{font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:var(--mut2); margin:2px 0 6px;}
+    .wh-list{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px;}
+    .wh-chip{display:inline-flex; align-items:center; gap:6px; font-size:13px; color:var(--txt2);
+      background:var(--card); border:0.5px solid var(--line2); border-radius:4px; padding:4px 8px; cursor:pointer;}
+    .wh-chip.loc{border-color:#0e3346;}
+    .wh-chip input{width:auto; margin:0;}
+    .map-arrow{display:flex; align-items:center; gap:8px;}
+    .map-arrow .arr{color:var(--mut);}
+    .map-label{color:var(--accent) !important;}
+    .map-label::placeholder{color:#9c5440;}
+
+    /* rate limits */
+    .rate-grid{display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;}
+    .rate-cell .label{font-size:12px; color:var(--mut); margin-bottom:6px;}
+    .rate-cell input{color:var(--accent); font-size:20px; font-weight:500; padding:6px 10px;}
+
+    /* toggles */
+    .toggle-row{display:flex; align-items:center; justify-content:space-between; margin:10px 0;}
+    .toggle-row .tl{font-size:13px; color:var(--txt2);}
+    .toggle-row.off-feature .tl{color:var(--mut);}
+    .switch{position:relative; display:inline-block; width:38px; height:20px; flex:0 0 38px;}
+    .switch input{opacity:0; width:0; height:0;}
+    .track{position:absolute; inset:0; background:var(--line2); border-radius:20px; transition:background .15s; cursor:pointer;}
+    .track:before{content:""; position:absolute; height:14px; width:14px; left:3px; top:3px;
+      background:#fff; border-radius:50%; transition:transform .15s;}
+    .switch input:checked + .track{background:var(--accent);}
+    .switch input:checked + .track:before{transform:translateX(18px);}
+    .switch input:disabled + .track{cursor:not-allowed; opacity:.5;}
+
+    /* simulate / output */
+    .sim-panel{margin-top:16px;}
+    .code-block{background:#0d0d0d; border:1px solid #1a1a1a; border-radius:8px; padding:14px;
+      font-family:var(--mono); font-size:13px; color:#d5e8d8; overflow:auto; max-height:380px;
+      white-space:pre-wrap; word-break:break-word; margin:0;}
+    .fetched{font-size:12px; color:var(--mut2); margin-top:8px; display:flex; align-items:center; gap:12px;}
+    .divider{border:0; border-top:0.5px solid var(--line); margin:18px 0;}
+    .panel-actions{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:18px;}
+
+    table.act{width:100%; border-collapse:collapse; font-size:13px;}
+    table.act th,table.act td{text-align:left; padding:9px 12px; border-bottom:0.5px solid var(--line); color:var(--txt2);}
+    table.act th{color:var(--mut2); font-weight:500; text-transform:uppercase; letter-spacing:.5px; font-size:12px; background:var(--card);}
+
+    /* status page */
+    .info-grid{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:26px;}
+    .info-card{background:var(--card); border:0.5px solid var(--line2); border-radius:8px; padding:18px 20px;}
+    .info-card .label{font-size:12px; color:var(--mut); margin-bottom:6px;}
+    .info-card .value{font-size:16px; color:var(--txt);}
+    .dot{display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:7px; vertical-align:middle;}
+    .dot.ok{background:var(--green);} .dot.bad{background:var(--accent);}
+
+    /* login */
+    .login-wrap{min-height:calc(100vh - 56px); display:flex; align-items:center; justify-content:center; padding:24px;}
+    .login-card{background:var(--card); border:0.5px solid var(--line2); border-radius:8px; padding:32px 30px; width:340px;}
+    .login-card h1{font-size:20px; font-weight:500; margin:0 0 4px; color:var(--txt);}
+    .login-card .sub{font-size:14px; color:var(--mut); margin:0 0 18px;}
+    .login-card button{width:100%; margin-top:22px;}
+    .err{background:#2a1110; border:0.5px solid #5a2420; color:#ff9b8f; padding:9px 12px;
+      border-radius:6px; font-size:13px; margin-top:14px;}
+
+    /* ---------- mobile / responsive ---------- */
+    @media (max-width:760px){
+      .menu-toggle{display:flex;}
+      .topbar{padding:0 12px; gap:8px;}
+      .brand{gap:8px; min-width:0;}
+      .brand-text .t2{display:none;}            /* save room: hide 'Admin Panel' subline */
+      .topbar-right{gap:8px;}
+      .topbar-user{max-width:90px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+      /* stack: sidebar becomes a collapsible panel under the topbar */
+      .layout{flex-direction:column; align-items:stretch;}
+      .sidebar{width:auto; flex:none; border-right:none; border-bottom:1px solid var(--line);
+        padding:8px 10px; display:none;}
+      .sidebar.open{display:block;}
+      .nav-section{margin-bottom:10px;}
+      .content{padding:16px 14px 60px;}
+      .page-head{flex-wrap:wrap; gap:10px;}
+      .stats{grid-template-columns:1fr 1fr; gap:10px;}
+      /* keys table: keep the essentials; drop secondary columns; scroll the rest if needed */
+      .table-wrap{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+      table.keys th:nth-child(2), table.keys td:nth-child(2),   /* Token */
+      table.keys th:nth-child(4), table.keys td:nth-child(4),   /* Categories */
+      table.keys th:nth-child(5), table.keys td:nth-child(5){   /* Last used */
+        display:none;}
+    }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">
+      {% if sidebar_active %}
+      <button class="menu-toggle" type="button" aria-label="Menu"
+              onclick="document.querySelector('.sidebar').classList.toggle('open')">
+        <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+      {% endif %}
+      <img class="logo-img" src="/inventory/logo.png" alt="MDR Lighting"
+           onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+      <div class="logo-fb" style="display:none">MDR</div>
+      <div class="brand-text">
+        <div class="t1">Inventory API</div>
+        <div class="t2">Admin Panel</div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      {% if username %}
+        {% if is_admin_user %}<span class="admin-badge">Admin</span>{% endif %}
+        <span class="topbar-user">{{ username }}</span>
+        <a class="topbar-link" href="{{ url_for('logout') }}">Sign out</a>
+      {% endif %}
+    </div>
+  </div>
+  <div class="layout">
+    {% if sidebar_active %}
+    <aside class="sidebar">
+      <div class="nav-section">
+        <div class="nav-label">Overview</div>
+        <a class="nav-item {{ 'active' if sidebar_active == 'keys' else '' }}" href="{{ url_for('admin_dashboard') }}">
+          <span class="nav-ic"><svg viewBox="0 0 24 24"><circle cx="8" cy="8" r="4"/><path d="M11 11l8 8m-3 0h3v-3"/></svg></span>
+          API Keys
+        </a>
+        <a class="nav-item {{ 'active' if sidebar_active == 'activity' else '' }}" href="{{ url_for('admin_activity_log') }}">
+          <span class="nav-ic"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span>
+          Activity Log
+        </a>
+        <a class="nav-item {{ 'active' if sidebar_active == 'status' else '' }}" href="{{ url_for('admin_status') }}">
+          <span class="nav-ic"><svg viewBox="0 0 24 24"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg></span>
+          Status
+        </a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">System</div>
+        {% set wh_ic %}<span class="nav-ic"><svg viewBox="0 0 24 24"><path d="M3 9l9-5 9 5v10l-9 5-9-5z"/><path d="M3 9l9 5 9-5"/></svg></span>{% endset %}
+        {% set cat_ic %}<span class="nav-ic"><svg viewBox="0 0 24 24"><path d="M3 7l5-3h13v13l-3 5H3z"/><circle cx="8.5" cy="8.5" r="1.5"/></svg></span>{% endset %}
+        {% set set_ic %}<span class="nav-ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3m0 12v3M3 12h3m12 0h3"/></svg></span>{% endset %}
+        {% set lock %}<span class="nav-lock"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="1"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>{% endset %}
+        {% if is_admin_user %}
+        <a class="nav-item {{ 'active' if sidebar_active == 'warehouses' else '' }}" href="{{ url_for('admin_warehouses') }}">{{ wh_ic }}Warehouses</a>
+        <a class="nav-item {{ 'active' if sidebar_active == 'categories' else '' }}" href="{{ url_for('admin_categories') }}">{{ cat_ic }}Categories</a>
+        <a class="nav-item {{ 'active' if sidebar_active == 'settings' else '' }}" href="{{ url_for('admin_settings') }}">{{ set_ic }}Settings</a>
+        {% else %}
+        <div class="nav-item locked" title="This section requires admin access">{{ wh_ic }}Warehouses{{ lock }}</div>
+        <div class="nav-item locked" title="This section requires admin access">{{ cat_ic }}Categories{{ lock }}</div>
+        <div class="nav-item locked" title="This section requires admin access">{{ set_ic }}Settings{{ lock }}</div>
+        {% endif %}
+      </div>
+    </aside>
+    {% endif %}
+    <main class="content">{% block content %}{% endblock %}</main>
+  </div>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

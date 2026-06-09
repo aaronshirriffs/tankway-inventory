@@ -1,0 +1,5 @@
+{
+  "default_rate_limit_per_minute": 5,
+  "default_rate_limit_daily": 200,
+  "default_burst_allowance": 3
+}
