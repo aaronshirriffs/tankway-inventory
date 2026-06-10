@@ -155,6 +155,16 @@ def _host_guard():
         abort(404)
 
 
+@app.before_request
+def _sso_auto_login():
+    # Trust the Authelia gateway identity (Remote-User) injected by nginx; this
+    # replaces the second login form. App only listens on localhost.
+    sso_user = (request.headers.get("Remote-User") or "").lower().strip()
+    if sso_user and sso_user in load_platform_users():
+        if not current_user.is_authenticated or current_user.id != sso_user:
+            login_user(User(sso_user))
+
+
 # ---------------------------------------------------------------------------
 # Shared product-building logic (used by /v1/products and admin "simulate")
 # ---------------------------------------------------------------------------
@@ -404,22 +414,12 @@ def health():
 # ===========================================================================
 @app.route("/inventory/login", methods=["GET", "POST"])
 def login():
+    # Authentication handled by Authelia SSO; no second login form here.
     if request.host.split(":")[0] != ADMIN_HOST:
         abort(404)
-    error = None
-    if request.method == "POST":
-        username = request.form.get("username", "").lower().strip()
-        password = request.form.get("password", "")
-        users = load_platform_users()
-        stored = users.get(username, {}).get("password")
-        if username in users and password == stored:
-            # Any valid Tankway Tools user may sign in (Tier 1). Admin-only
-            # sections are gated per-route by @admin_required.
-            login_user(User(username))
-            return redirect(url_for("admin_dashboard"))
-        else:
-            error = "Invalid username or password."
-    return render_template("login.html", error=error)
+    if current_user.is_authenticated:
+        return redirect(url_for("admin_dashboard"))
+    return redirect("/")
 
 
 @app.route("/inventory/logout")
