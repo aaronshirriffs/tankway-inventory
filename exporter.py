@@ -51,8 +51,10 @@ def export_config(config):
     ex = config.get("export")
     if isinstance(ex, dict):
         for k, v in ex.items():
-            if k == "columns" and isinstance(v, dict):
-                merged["columns"].update(v)
+            if k == "columns":
+                if isinstance(v, dict):
+                    merged["columns"].update(v)
+                # non-dict columns value: ignore, keep safe defaults
             else:
                 merged[k] = v
     return merged
