@@ -13,6 +13,7 @@ import json
 import os
 import re
 import secrets
+import shutil
 import threading
 from collections import deque
 from datetime import datetime, timezone
@@ -101,8 +102,18 @@ def load_keys():
 
 
 def save_keys(keys):
-    """Atomically persist the keys dict."""
+    """Atomically persist the keys dict.
+
+    Before overwriting, the current file is copied to keys.json.bak, so the
+    immediately-previous version is always one step away if a save writes bad
+    data. (Daily off-app backups are handled separately by the system backup
+    job, which also archives this file.)"""
     with _lock:
+        if os.path.exists(KEYS_FILE):
+            try:
+                shutil.copy2(KEYS_FILE, KEYS_FILE + ".bak")
+            except OSError:
+                pass  # a backup failure must never block a legitimate save
         tmp = KEYS_FILE + ".tmp"
         with open(tmp, "w") as f:
             json.dump(keys, f, indent=2)
