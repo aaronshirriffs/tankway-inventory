@@ -194,7 +194,8 @@ def save_settings(d):
 def new_key(label, allowed_categories=None, excluded_skus=None,
             warehouse_mappings=None, show_price=False, expiry=None,
             rate_limit_per_minute=5, rate_limit_daily=200, burst_allowance=3,
-            excluded_categories=None, show_incoming=False, pricelist=None):
+            excluded_categories=None, show_incoming=False, pricelist=None,
+            export=None):
     """Create and persist a new key. Returns (token, config)."""
     token = "mdr_" + secrets.token_urlsafe(32)
     config = {
@@ -214,6 +215,8 @@ def new_key(label, allowed_categories=None, excluded_skus=None,
         "rate_limit_per_minute": int(rate_limit_per_minute),
         "rate_limit_daily": int(rate_limit_daily),
         "burst_allowance": int(burst_allowance),
+        # Email-export settings (None = feature off; see exporter.DEFAULT_EXPORT).
+        "export": export,
     }
     with _lock:
         keys = load_keys()

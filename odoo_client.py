@@ -271,6 +271,53 @@ def get_incoming_stock(models, uid, product_ids):
     return result
 
 
+def fetch_export_extras(models, uid, product_ids):
+    """
+    Export-only product fields: weight, inventory category, eCommerce categories.
+    Used solely by the email-export engine — the /v1/products path never calls
+    this, so the live API's Odoo footprint is unchanged.
+
+    Returns { product_id: {weight, inv_category, ecom_category} } where
+    ecom_category is the website categories as 'Parent > Name', comma-joined.
+    """
+    _, db, _, key = _creds()
+    out = {}
+    if not product_ids:
+        return out
+
+    recs = models.execute_kw(
+        db, uid, key,
+        "product.product", "read",
+        [list(product_ids)],
+        {"fields": ["weight", "categ_id", "public_categ_ids"]},
+    )
+
+    pc_ids = sorted({i for r in recs for i in (r.get("public_categ_ids") or [])})
+    pc_name = {}
+    if pc_ids:
+        try:
+            cats = models.execute_kw(
+                db, uid, key,
+                "product.public.category", "read",
+                [pc_ids], {"fields": ["name", "parent_id"]},
+            )
+            for c in cats:
+                parent = c.get("parent_id")
+                pc_name[c["id"]] = f"{parent[1]} > {c['name']}" if parent else c["name"]
+        except Exception:
+            pc_name = {}
+
+    for r in recs:
+        out[r["id"]] = {
+            "weight": r.get("weight") or 0.0,
+            "inv_category": r["categ_id"][1] if r.get("categ_id") else "",
+            "ecom_category": ", ".join(
+                pc_name.get(i, "") for i in (r.get("public_categ_ids") or []) if pc_name.get(i)
+            ),
+        }
+    return out
+
+
 def list_pricelists(models, uid):
     """All sale pricelists: [{id, name}]. Used to assign a customer buy-price list per key."""
     _, db, _, key = _creds()

@@ -5,3 +5,8 @@ werkzeug>=3.0.0
 tzdata>=2024.1
 python-docx
 gunicorn>=21.0
+openpyxl>=3.1
+apscheduler>=3.10,<4
+google-auth>=2.28.0
+google-auth-oauthlib>=1.2.0
+google-api-python-client>=2.120.0

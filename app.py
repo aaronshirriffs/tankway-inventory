@@ -28,6 +28,9 @@ import odoo_client
 import storage
 import rate_limit
 import docgen
+import exporter
+import gmail_client
+import columns
 
 load_dotenv(dotenv_path=Path(__file__).parent / ".env")
 
@@ -470,7 +473,31 @@ def admin_dashboard():
         pricelists=pricelists,
         odoo_ok=odoo_ok, odoo_msg=odoo_msg, username=current_user.id, sidebar_active="keys",
         rate_defaults=rate_defaults,
+        export_columns=[(c["toggle"], c["label"]) for c in columns.COLUMNS if c["toggle"]],
+        gmail_connected=gmail_client.is_authorised(),
     )
+
+
+def _parse_export_form(form):
+    """Email-export settings from the key form (same toggle pattern as
+    show_price / show_incoming). last_sent/last_result are runtime state and
+    are re-attached in the update route, not parsed from the form."""
+    def _int(name, default):
+        try:
+            return int(form.get(name))
+        except (TypeError, ValueError):
+            return default
+
+    return {
+        "enabled": form.get("export_enabled") == "on",
+        "format": "csv" if form.get("export_format") == "csv" else "xlsx",
+        "email": (form.get("export_email") or "").strip(),
+        "reply_to": (form.get("export_reply_to") or "").strip(),
+        "frequency": "daily" if form.get("export_frequency") == "daily" else "weekly",
+        "weekday": min(max(_int("export_weekday", 0), 0), 6),
+        "hour": min(max(_int("export_hour", 7), 0), 23),
+        "columns": {t: form.get("export_col_" + t) == "on" for t in columns.COLUMN_TOGGLES},
+    }
 
 
 def _parse_key_form(form, warehouses, categories, locations=None, pricelists=None):
@@ -530,6 +557,7 @@ def _parse_key_form(form, warehouses, categories, locations=None, pricelists=Non
 
     settings = storage.load_settings()
     return {
+        "export": _parse_export_form(form),
         "label": form.get("label", "").strip() or "Unnamed",
         "expiry": (form.get("expiry") or "").strip() or None,
         "allowed_categories": allowed_categories,
@@ -575,6 +603,10 @@ def update_key(token):
     except Exception:
         categories, warehouses, locations, pricelists = [], [], [], []
     fields = _parse_key_form(request.form, warehouses, categories, locations, pricelists)
+    # Keep export runtime state (last sent/result) across admin saves.
+    prev = (storage.get_key(token) or {}).get("export") or {}
+    fields["export"]["last_sent"] = prev.get("last_sent")
+    fields["export"]["last_result"] = prev.get("last_result", "")
     storage.update_key(token, **fields)
     if request.headers.get("X-Requested-With"):
         # AJAX save — keep the editor open client-side; just confirm success.
@@ -616,6 +648,40 @@ def simulate_key(token):
     except Exception as e:
         return jsonify({"error": f"Odoo query failed: {e}"}), 502
     return jsonify({"count": len(products), "products": products})
+
+
+@app.route("/inventory/keys/<token>/send-export", methods=["POST"])
+@tools_required
+def send_export_now(token):
+    """Send Now — emails the key's export immediately using its SAVED settings.
+    Never touches /v1/products, rate limits, or the customer activity log."""
+    config = storage.get_key(token)
+    if not config:
+        return jsonify({"ok": False, "error": "Key not found"}), 404
+    try:
+        result = exporter.run_export(token, config)
+        return jsonify({"ok": True, **result})
+    except exporter.ExportError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Export failed: {e}"}), 502
+
+
+@app.route("/inventory/keys/<token>/export-preview")
+@tools_required
+def export_preview(token):
+    """Download the export file directly (no email) so an admin can sanity-check
+    the exact spreadsheet a customer would receive."""
+    config = storage.get_key(token)
+    if not config:
+        abort(404)
+    try:
+        filename, data, fmt, _count = exporter.build_export_file(config)
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Export build failed: {e}"}), 502
+    import io as _io
+    return send_file(_io.BytesIO(data), as_attachment=True, download_name=filename,
+                     mimetype=gmail_client.MIMETYPES[fmt])
 
 
 @app.route("/inventory/logo.png")
@@ -784,6 +850,23 @@ def download_doc(name):
     download_name, builder = entry
     buf = builder()
     return send_file(buf, as_attachment=True, download_name=download_name, mimetype=DOCX_MIME)
+
+
+# ---------------------------------------------------------------------------
+# Scheduled email exports. Gunicorn runs a single worker (-w 1), so exactly
+# one scheduler instance exists; move this to a systemd timer before ever
+# scaling workers, or every worker will email every customer.
+# run_due_exports() swallows all exceptions — a broken export can never
+# affect the live API.
+# ---------------------------------------------------------------------------
+try:
+    from apscheduler.schedulers.background import BackgroundScheduler
+    _export_scheduler = BackgroundScheduler(daemon=True)
+    _export_scheduler.add_job(exporter.run_due_exports, "interval", minutes=5,
+                              id="email_exports", coalesce=True, max_instances=1)
+    _export_scheduler.start()
+except Exception:
+    app.logger.exception("Email-export scheduler failed to start; live API unaffected.")
 
 
 if __name__ == "__main__":

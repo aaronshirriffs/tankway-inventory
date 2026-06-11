@@ -166,6 +166,93 @@
         </div>
       </div>
 
+      {# ----- Email export: scheduled XLSX/CSV delivery, same filters as the API ----- #}
+      {% set ex = (key.export if key and key.export else {}) %}
+      {% set excols = (ex.get('columns') if ex.get('columns') else {}) %}
+      <hr class="divider">
+      <div class="two-col">
+        <div>
+          <div class="col-block">
+            <label class="fld">Email export — scheduled XLSX/CSV delivery</label>
+            <div class="toggle-row">
+              <span class="tl">Enable scheduled export</span>
+              <label class="switch"><input type="checkbox" name="export_enabled" {{ 'checked' if ex.get('enabled') else '' }}><span class="track"></span></label>
+            </div>
+            {% if not gmail_connected %}
+            <div class="hint">⚠ Gmail is not connected yet — exports can't send until <code>auth_setup_export.py</code> is run once as system@mdrlighting.co.nz.</div>
+            {% endif %}
+          </div>
+
+          <div class="col-block">
+            <label class="fld">Format (fixed per customer)</label>
+            <select name="export_format">
+              <option value="xlsx" {{ 'selected' if ex.get('format', 'xlsx') != 'csv' else '' }}>XLSX (Excel)</option>
+              <option value="csv" {{ 'selected' if ex.get('format') == 'csv' else '' }}>CSV</option>
+            </select>
+          </div>
+
+          <div class="col-block">
+            <label class="fld">Recipient email(s) — comma-separated</label>
+            <input type="text" name="export_email" value="{{ ex.get('email', '') }}" placeholder="orders@customer.co.nz">
+          </div>
+
+          <div class="col-block">
+            <label class="fld">Reply-to address (optional)</label>
+            <input type="text" name="export_reply_to" value="{{ ex.get('reply_to', '') }}" placeholder="sales@mdrlighting.co.nz">
+            <div class="hint">Exports send from the connected system account; customer replies go to this address instead.</div>
+          </div>
+
+          <div class="col-block">
+            <label class="fld">Schedule (NZ time)</label>
+            <div class="rate-grid">
+              <div class="rate-cell"><div class="label">Frequency</div>
+                <select name="export_frequency">
+                  <option value="weekly" {{ 'selected' if ex.get('frequency', 'weekly') != 'daily' else '' }}>Weekly</option>
+                  <option value="daily" {{ 'selected' if ex.get('frequency') == 'daily' else '' }}>Daily</option>
+                </select></div>
+              <div class="rate-cell"><div class="label">Day (weekly only)</div>
+                <select name="export_weekday">
+                  {% for d in ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'] %}
+                  <option value="{{ loop.index0 }}" {{ 'selected' if ex.get('weekday', 0) == loop.index0 else '' }}>{{ d }}</option>
+                  {% endfor %}
+                </select></div>
+              <div class="rate-cell"><div class="label">Time</div>
+                <select name="export_hour">
+                  {% for h in range(24) %}<option value="{{ h }}" {{ 'selected' if ex.get('hour', 7) == h else '' }}>{{ '%02d:00' % h }}</option>{% endfor %}
+                </select></div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="col-block">
+            <label class="fld">Export columns (fixed order)</label>
+            <div class="toggle-row off-feature">
+              <span class="tl">Name · Sku · Stock (Available Immediately) <span class="muted">(always included)</span></span>
+              <label class="switch"><input type="checkbox" checked disabled><span class="track"></span></label>
+            </div>
+            {% for t, lbl in export_columns %}
+            <div class="toggle-row">
+              <span class="tl">{{ lbl }}</span>
+              <label class="switch"><input type="checkbox" name="export_col_{{ t }}" {{ 'checked' if excols.get(t) else '' }}><span class="track"></span></label>
+            </div>
+            {% endfor %}
+            <div class="hint">"Your Buy Price" needs a pricelist assigned above. "Secondary Warehouse Availability" shows the key's second warehouse mapping (blank until one exists).</div>
+          </div>
+
+          {% if key %}
+          <div class="col-block">
+            <label class="fld">Test this export</label>
+            <div style="display:flex; gap:8px; flex-wrap:wrap">
+              <button type="button" class="btn-ghost" onclick="sendExport('{{ key.token }}', this)">Send export now</button>
+              <a class="btn-ghost" style="text-decoration:none" href="/inventory/keys/{{ key.token }}/export-preview">Download preview</a>
+            </div>
+            <div class="hint">Both use the last <strong>saved</strong> settings — save changes first. Last sent: {{ ex.get('last_sent') | nzdatetime }}{% if ex.get('last_result') %}<br>{{ ex.get('last_result') }}{% endif %}</div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
       <div class="panel-actions">
         <button type="submit" class="btn-primary">{{ submit_label }}</button>
         {% if key %}
@@ -467,6 +554,20 @@ function submitKeyForm(ev, form){
     .catch(e => toast('Save failed — ' + e.message, true))
     .finally(() => { if (btn) btn.disabled = false; });
   return false;
+}
+
+/* ----- email export: Send Now (uses last-saved settings) ----- */
+async function sendExport(token, btn){
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Sending…';
+  try {
+    const r = await fetch('/inventory/keys/' + encodeURIComponent(token) + '/send-export',
+                          { method: 'POST', credentials: 'same-origin' });
+    const j = await r.json().catch(() => ({}));
+    if (r.ok && j.ok) toast('Export emailed — ' + j.products + ' products to ' + j.to);
+    else toast('Export failed — ' + (j.error || ('HTTP ' + r.status)), true);
+  } catch(e){ toast('Export failed — ' + e.message, true); }
+  finally { btn.disabled = false; btn.textContent = orig; }
 }
 
 /* ----- simulate (live JSON preview) ----- */
