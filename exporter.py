@@ -144,7 +144,7 @@ def run_export(token, config):
     body = (
         f"Hi {cust},\n\n"
         f"Please find attached the current stock availability information from MDR Lighting "
-        f"({count} products, {ncat} {cat_word}, generated {stamp} NZT).\n\n"
+        f"({count} products, {ncat} {cat_word}, generated {stamp}).\n\n"
         f"Regards,\nMDR Lighting\n"
     )
     gmail_client.send_with_attachment(
