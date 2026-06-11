@@ -103,11 +103,12 @@ def build_export_file(config):
     on = ecfg["columns"]
 
     # Work on a copy so the engine returns the fields the selected columns
-    # need, regardless of the key's API-facing toggles. The stored config —
-    # and therefore the live API — is never modified.
+    # need. The export is driven ENTIRELY by its own column toggles — the key's
+    # API-facing visibility toggles (Show sales price / Show incoming stock)
+    # have no effect on the export. The stored config — and therefore the live
+    # API — is never modified.
     working = dict(config)
-    if on.get("price_exc") or on.get("price_inc"):
-        working["show_price"] = True
+    working["show_price"] = bool(on.get("price_exc") or on.get("price_inc"))
     working["show_incoming"] = bool(on.get("incoming"))
     products = build_products(working)
 

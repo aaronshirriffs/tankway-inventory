@@ -166,14 +166,22 @@
         </div>
       </div>
 
-      {# ----- Email export: scheduled XLSX/CSV delivery, same filters as the API ----- #}
+      {# ----- Email export: a distinctly-framed module, separate from the API config above ----- #}
       {% set ex = (key.export if key and key.export else {}) %}
       {% set excols = (ex.get('columns') if ex.get('columns') else {}) %}
-      <hr class="divider">
+      <div class="export-block">
+      <div class="export-block-head">
+        <span class="export-block-icon">
+          <svg viewBox="0 0 24 24"><path d="M3 6l9 7 9-7"/><rect x="3" y="5" width="18" height="14" rx="2"/></svg>
+        </span>
+        <div>
+          <div class="eb-title">Email Export</div>
+          <div class="eb-sub">Scheduled spreadsheet delivery — independent of the live API settings above</div>
+        </div>
+      </div>
       <div class="two-col">
         <div>
           <div class="col-block">
-            <label class="fld">Email export — scheduled XLSX/CSV delivery</label>
             <div class="toggle-row">
               <span class="tl">Enable scheduled export</span>
               <label class="switch"><input type="checkbox" name="export_enabled" {{ 'checked' if ex.get('enabled') else '' }}><span class="track"></span></label>
@@ -252,6 +260,7 @@
           {% endif %}
         </div>
       </div>
+      </div>{# /export-block #}
 
       <div class="panel-actions">
         <button type="submit" class="btn-primary">{{ submit_label }}</button>

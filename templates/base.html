@@ -197,6 +197,19 @@
     .divider{border:0; border-top:0.5px solid var(--line); margin:18px 0;}
     .panel-actions{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:18px;}
 
+    /* email-export: a distinctly-framed module so it doesn't read as part of
+       the API config above */
+    .export-block{margin-top:24px; background:var(--bg); border:0.5px solid var(--line2);
+      border-left:3px solid var(--accent); border-radius:8px; padding:0 18px 8px;}
+    .export-block-head{display:flex; align-items:center; gap:11px; margin:0 -18px 16px;
+      padding:13px 18px; background:#140b07; border-bottom:0.5px solid var(--line2);
+      border-radius:7px 7px 0 0;}
+    .export-block-icon{width:28px; height:28px; flex:none; border-radius:6px; background:var(--accent);
+      color:#fff; display:flex; align-items:center; justify-content:center;}
+    .export-block-icon svg{width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:1.8;}
+    .export-block-head .eb-title{font-size:13px; font-weight:600; color:#fff; letter-spacing:.3px;}
+    .export-block-head .eb-sub{font-size:12px; color:var(--mut); margin-top:1px;}
+
     table.act{width:100%; border-collapse:collapse; font-size:13px;}
     table.act th,table.act td{text-align:left; padding:9px 12px; border-bottom:0.5px solid var(--line); color:var(--txt2);}
     table.act th{color:var(--mut2); font-weight:500; text-transform:uppercase; letter-spacing:.5px; font-size:12px; background:var(--card);}
