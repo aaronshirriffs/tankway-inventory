@@ -82,28 +82,38 @@ def _weight(item, config, extras):
     return _num((extras.get(item["id"]) or {}).get("weight", ""))
 
 
+def _name(item, config, extras):
+    """Product name, with the variant attribute suffix appended in the export so
+    different sizes/colours/etc of the same template are distinguishable
+    (e.g. 'Utorm mobile system package (2x Frames high)'). The suffix comes from
+    fetch_export_extras() — the live API path is unchanged."""
+    base = item.get("name") or ""
+    suffix = (extras.get(item["id"]) or {}).get("variant_suffix", "")
+    return base + suffix
+
+
 def _extra(field):
     def get(item, config, extras):
         return (extras.get(item["id"]) or {}).get(field, "")
     return get
 
 
-# Fixed order. toggle=None -> compulsory (always exported); otherwise the
-# column is included only when export.columns[toggle] is true on the key —
-# the same per-customer opt-in pattern as show_price / show_incoming.
+# Fixed left-to-right order. toggle=None -> compulsory (always exported);
+# otherwise the column is included only when export.columns[toggle] is true on
+# the key — the same per-customer opt-in pattern as show_price / show_incoming.
 COLUMNS = [
-    {"toggle": None,            "label": "Name",                             "get": lambda i, c, e: i.get("name") or ""},
+    {"toggle": "inv_category",  "label": "Internal Category",                "get": _extra("inv_category")},
     {"toggle": None,            "label": "Sku",                              "get": lambda i, c, e: i.get("sku") or ""},
+    {"toggle": None,            "label": "Name",                             "get": _name},
     {"toggle": None,            "label": "Stock (Available Immediately)",    "get": _stock},
-    {"toggle": "price_exc",     "label": "Sales Price (GST exc)",            "get": _price_exc},
-    {"toggle": "price_inc",     "label": "Sales Price (GST inc)",            "get": _price_inc},
+    {"toggle": "secondary",     "label": "Secondary Warehouse Availability", "get": _secondary},
+    {"toggle": "incoming",      "label": "Incoming Stock Available",         "get": _incoming},
+    {"toggle": "price_exc",     "label": "RRP (GST exc)",                    "get": _price_exc},
+    {"toggle": "price_inc",     "label": "RRP (GST inc)",                    "get": _price_inc},
     # Label is deliberately generic — never a customer or pricelist name.
     {"toggle": "buy_price",     "label": "Your Buy Price (GST exc)",         "get": _buy_price},
-    {"toggle": "incoming",      "label": "Incoming Stock Available",         "get": _incoming},
-    {"toggle": "secondary",     "label": "Secondary Warehouse Availability", "get": _secondary},
     {"toggle": "weight",        "label": "Volumetric Weight",                "get": _weight},
-    {"toggle": "inv_category",  "label": "Inventory Category",               "get": _extra("inv_category")},
-    {"toggle": "ecom_category", "label": "eCommerce Category/s",             "get": _extra("ecom_category")},
+    {"toggle": "ecom_category", "label": "B2B portal category/s",            "get": _extra("ecom_category")},
 ]
 
 COLUMN_TOGGLES = [c["toggle"] for c in COLUMNS if c["toggle"]]

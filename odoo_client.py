@@ -273,12 +273,15 @@ def get_incoming_stock(models, uid, product_ids):
 
 def fetch_export_extras(models, uid, product_ids):
     """
-    Export-only product fields: weight, inventory category, eCommerce categories.
-    Used solely by the email-export engine — the /v1/products path never calls
-    this, so the live API's Odoo footprint is unchanged.
+    Export-only product fields: weight, inventory category, eCommerce categories,
+    and a variant suffix. Used solely by the email-export engine — the
+    /v1/products path never calls this, so the live API's Odoo footprint is
+    unchanged.
 
-    Returns { product_id: {weight, inv_category, ecom_category} } where
-    ecom_category is the website categories as 'Parent > Name', comma-joined.
+    Returns { product_id: {weight, inv_category, ecom_category, variant_suffix} }
+    where ecom_category is the website categories as 'Parent > Name' comma-joined,
+    and variant_suffix is e.g. ' (2x Frames high)' for a product variant (''
+    when the product has no distinguishing attributes).
     """
     _, db, _, key = _creds()
     out = {}
@@ -289,7 +292,8 @@ def fetch_export_extras(models, uid, product_ids):
         db, uid, key,
         "product.product", "read",
         [list(product_ids)],
-        {"fields": ["weight", "categ_id", "public_categ_ids"]},
+        {"fields": ["weight", "categ_id", "public_categ_ids",
+                    "product_template_attribute_value_ids"]},
     )
 
     pc_ids = sorted({i for r in recs for i in (r.get("public_categ_ids") or [])})
@@ -307,13 +311,31 @@ def fetch_export_extras(models, uid, product_ids):
         except Exception:
             pc_name = {}
 
+    # Resolve variant attribute-value names (e.g. '2x Frames high') so the
+    # export can distinguish variants that share a template name.
+    av_ids = sorted({i for r in recs for i in (r.get("product_template_attribute_value_ids") or [])})
+    av_name = {}
+    if av_ids:
+        try:
+            avs = models.execute_kw(
+                db, uid, key,
+                "product.template.attribute.value", "read",
+                [av_ids], {"fields": ["name"]},
+            )
+            av_name = {a["id"]: a.get("name") for a in avs}
+        except Exception:
+            av_name = {}
+
     for r in recs:
+        vals = [av_name.get(i) for i in (r.get("product_template_attribute_value_ids") or [])
+                if av_name.get(i)]
         out[r["id"]] = {
             "weight": r.get("weight") or 0.0,
             "inv_category": r["categ_id"][1] if r.get("categ_id") else "",
             "ecom_category": ", ".join(
                 pc_name.get(i, "") for i in (r.get("public_categ_ids") or []) if pc_name.get(i)
             ),
+            "variant_suffix": (" (" + ", ".join(vals) + ")") if vals else "",
         }
     return out
 

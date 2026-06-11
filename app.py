@@ -676,7 +676,7 @@ def export_preview(token):
     if not config:
         abort(404)
     try:
-        filename, data, fmt, _count = exporter.build_export_file(config)
+        filename, data, fmt, _count, _ncat = exporter.build_export_file(config)
     except Exception as e:
         return jsonify({"ok": False, "error": f"Export build failed: {e}"}), 502
     import io as _io

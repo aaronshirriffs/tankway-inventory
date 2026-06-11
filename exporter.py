@@ -111,17 +111,21 @@ def build_export_file(config):
     working["show_incoming"] = bool(on.get("incoming"))
     products = build_products(working)
 
+    # extras are always fetched now: the Name column appends each product's
+    # variant suffix (so variants are distinguishable), and the email body
+    # reports how many distinct inventory categories the file spans.
     extras = {}
-    if any(on.get(t) for t in columns.EXTRA_TOGGLES):
+    if products:
         uid, models = odoo_client.connect()
         extras = odoo_client.fetch_export_extras(models, uid, [p["id"] for p in products])
 
     headers, rows = columns.build_rows(products, config, extras, on)
+    ncat = len({e.get("inv_category") for e in extras.values() if e.get("inv_category")})
     fmt = "csv" if ecfg["format"] == "csv" else "xlsx"
     data = _render_csv(headers, rows) if fmt == "csv" else _render_xlsx(headers, rows)
     stamp = datetime.now(NZT).strftime("%Y-%m-%d")
     filename = f"MDR_Stock_{_slug(config.get('label'))}_{stamp}.{fmt}"
-    return filename, data, fmt, len(products)
+    return filename, data, fmt, len(products), ncat
 
 
 def run_export(token, config):
@@ -133,12 +137,14 @@ def run_export(token, config):
     if not gmail_client.is_authorised():
         raise ExportError("Gmail is not connected yet — run auth_setup_export.py once.")
 
-    filename, data, fmt, count = build_export_file(config)
+    filename, data, fmt, count, ncat = build_export_file(config)
     stamp = datetime.now(NZT).strftime("%d %B %Y")
+    cust = (config.get("label") or "").strip() or "there"
+    cat_word = "category" if ncat == 1 else "categories"
     body = (
-        f"Hi,\n\n"
-        f"Please find attached your current stock availability from MDR Lighting "
-        f"({count} products, generated {stamp} NZT).\n\n"
+        f"Hi {cust},\n\n"
+        f"Please find attached the current stock availability information from MDR Lighting "
+        f"({count} products, {ncat} {cat_word}, generated {stamp} NZT).\n\n"
         f"Regards,\nMDR Lighting\n"
     )
     gmail_client.send_with_attachment(
