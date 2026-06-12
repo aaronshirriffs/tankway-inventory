@@ -134,15 +134,43 @@ def fetch_products(models, uid, category_ids, excluded_skus, excluded_category_i
     if excluded_skus:
         domain.append(["default_code", "not in", list(excluded_skus)])
 
-    return models.execute_kw(
+    products = models.execute_kw(
         db, uid, key,
         "product.product", "search_read",
         [domain],
         # lst_price (not list_price) is the per-variant sales price: it includes
         # the variant's price_extra, so different sizes/colours of one template
         # carry their correct prices. For non-variant products lst_price == list_price.
-        {"fields": ["id", "name", "default_code", "lst_price", "write_date"], "order": "name"},
+        {"fields": ["id", "name", "default_code", "lst_price", "write_date",
+                    "product_template_attribute_value_ids"], "order": "name"},
     )
+    _append_variant_suffix(models, uid, products)
+    return products
+
+
+def _append_variant_suffix(models, uid, products):
+    """Append each product's variant attribute values to its name in-place, e.g.
+    'Utorm mobile system package' -> 'Utorm mobile system package (2x Frames high)',
+    so variants that share a template name are distinguishable. No-op for
+    non-variant products. Used in the shared product path so the API and the
+    email export name variants identically."""
+    _, db, _, key = _creds()
+    av_ids = sorted({i for p in products
+                     for i in (p.get("product_template_attribute_value_ids") or [])})
+    if not av_ids:
+        return
+    av_name = {}
+    try:
+        for a in models.execute_kw(db, uid, key, "product.template.attribute.value",
+                                   "read", [av_ids], {"fields": ["name"]}):
+            av_name[a["id"]] = a.get("name")
+    except Exception:
+        return
+    for p in products:
+        vals = [av_name.get(i) for i in (p.get("product_template_attribute_value_ids") or [])
+                if av_name.get(i)]
+        if vals:
+            p["name"] = (p.get("name") or "") + " (" + ", ".join(vals) + ")"
 
 
 def stock_by_warehouse(models, uid, product_ids, warehouse_ids):
@@ -276,15 +304,13 @@ def get_incoming_stock(models, uid, product_ids):
 
 def fetch_export_extras(models, uid, product_ids):
     """
-    Export-only product fields: weight, inventory category, eCommerce categories,
-    and a variant suffix. Used solely by the email-export engine — the
-    /v1/products path never calls this, so the live API's Odoo footprint is
-    unchanged.
+    Export-only product fields: weight, inventory category, eCommerce categories.
+    Used solely by the email-export engine — the /v1/products path never calls
+    this, so the live API's Odoo footprint is unchanged. (Variant naming is
+    handled in the shared product path, not here.)
 
-    Returns { product_id: {weight, inv_category, ecom_category, variant_suffix} }
-    where ecom_category is the website categories as 'Parent > Name' comma-joined,
-    and variant_suffix is e.g. ' (2x Frames high)' for a product variant (''
-    when the product has no distinguishing attributes).
+    Returns { product_id: {weight, inv_category, ecom_category} } where
+    ecom_category is the website categories as 'Parent > Name' comma-joined.
     """
     _, db, _, key = _creds()
     out = {}
@@ -295,8 +321,7 @@ def fetch_export_extras(models, uid, product_ids):
         db, uid, key,
         "product.product", "read",
         [list(product_ids)],
-        {"fields": ["weight", "categ_id", "public_categ_ids",
-                    "product_template_attribute_value_ids"]},
+        {"fields": ["weight", "categ_id", "public_categ_ids"]},
     )
 
     pc_ids = sorted({i for r in recs for i in (r.get("public_categ_ids") or [])})
@@ -314,31 +339,13 @@ def fetch_export_extras(models, uid, product_ids):
         except Exception:
             pc_name = {}
 
-    # Resolve variant attribute-value names (e.g. '2x Frames high') so the
-    # export can distinguish variants that share a template name.
-    av_ids = sorted({i for r in recs for i in (r.get("product_template_attribute_value_ids") or [])})
-    av_name = {}
-    if av_ids:
-        try:
-            avs = models.execute_kw(
-                db, uid, key,
-                "product.template.attribute.value", "read",
-                [av_ids], {"fields": ["name"]},
-            )
-            av_name = {a["id"]: a.get("name") for a in avs}
-        except Exception:
-            av_name = {}
-
     for r in recs:
-        vals = [av_name.get(i) for i in (r.get("product_template_attribute_value_ids") or [])
-                if av_name.get(i)]
         out[r["id"]] = {
             "weight": r.get("weight") or 0.0,
             "inv_category": r["categ_id"][1] if r.get("categ_id") else "",
             "ecom_category": ", ".join(
                 pc_name.get(i, "") for i in (r.get("public_categ_ids") or []) if pc_name.get(i)
             ),
-            "variant_suffix": (" (" + ", ".join(vals) + ")") if vals else "",
         }
     return out
 
