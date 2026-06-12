@@ -262,9 +262,9 @@ def build_products(config):
             "last_updated": p.get("write_date"),
         }
         if show_price:
-            item["sales_price"] = round(p.get("list_price") or 0.0, 2)
+            item["sales_price"] = round(p.get("lst_price") or 0.0, 2)
         if pricelist and pricelist.get("id"):
-            item["your_price"] = buy_prices.get(p["id"], round(p.get("list_price") or 0.0, 2))
+            item["your_price"] = buy_prices.get(p["id"], round(p.get("lst_price") or 0.0, 2))
         item["stock"] = stock_obj
         item["availability"] = availability
         if show_incoming:

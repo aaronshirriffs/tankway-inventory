@@ -138,7 +138,10 @@ def fetch_products(models, uid, category_ids, excluded_skus, excluded_category_i
         db, uid, key,
         "product.product", "search_read",
         [domain],
-        {"fields": ["id", "name", "default_code", "list_price", "write_date"], "order": "name"},
+        # lst_price (not list_price) is the per-variant sales price: it includes
+        # the variant's price_extra, so different sizes/colours of one template
+        # carry their correct prices. For non-variant products lst_price == list_price.
+        {"fields": ["id", "name", "default_code", "lst_price", "write_date"], "order": "name"},
     )
 
 
@@ -375,7 +378,9 @@ def pricelist_prices(models, uid, pricelist_id, product_ids, qty=1):
         db, uid, key,
         "product.product", "read",
         [ids],
-        {"fields": ["list_price", "standard_price", "categ_id", "product_tmpl_id"]},
+        # lst_price = per-variant sales price (base + price_extra); the pricelist
+        # "Sales Price" base must use this so variant buy prices are correct.
+        {"fields": ["lst_price", "standard_price", "categ_id", "product_tmpl_id"]},
     )
 
     categ_ids = list({p["categ_id"][0] for p in prods if p.get("categ_id")})
@@ -411,7 +416,7 @@ def pricelist_prices(models, uid, pricelist_id, product_ids, qty=1):
     items = [it for it in items if _date_ok(it)]
 
     for p in prods:
-        list_price = p.get("list_price") or 0.0
+        list_price = p.get("lst_price") or 0.0   # per-variant sales price (incl. price_extra)
         cost = p.get("standard_price") or 0.0
         pcat = p["categ_id"][0] if p.get("categ_id") else None
         ancs = ancestors.get(pcat, set())
