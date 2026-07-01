@@ -110,6 +110,7 @@ def build_export_file(config):
     working = dict(config)
     working["show_price"] = bool(on.get("price_exc") or on.get("price_inc"))
     working["show_incoming"] = bool(on.get("incoming"))
+    working["show_compare"] = bool(on.get("compare"))
     products = build_products(working)
 
     # extras are always fetched now: the Name column appends each product's

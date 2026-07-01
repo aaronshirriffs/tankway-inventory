@@ -82,6 +82,13 @@ def _weight(item, config, extras):
     return _num((extras.get(item["id"]) or {}).get("weight", ""))
 
 
+def _compare(item, config, extras):
+    # compare_price is set by build_products only when the compare column is on;
+    # it's the strike-through "was" price, or None/absent when not applied.
+    v = item.get("compare_price")
+    return _num(_round2(v)) if v else ""
+
+
 def _extra(field):
     def get(item, config, extras):
         return (extras.get(item["id"]) or {}).get(field, "")
@@ -100,6 +107,7 @@ COLUMNS = [
     {"toggle": "incoming",      "label": "Incoming Stock Available",         "get": _incoming},
     {"toggle": "price_exc",     "label": "RRP (GST exc)",                    "get": _price_exc},
     {"toggle": "price_inc",     "label": "RRP (GST inc)",                    "get": _price_inc},
+    {"toggle": "compare",       "label": "Compare to Price",                 "get": _compare},
     # Label is deliberately generic — never a customer or pricelist name.
     {"toggle": "buy_price",     "label": "Your Buy Price (GST exc)",         "get": _buy_price},
     {"toggle": "weight",        "label": "Volumetric Weight",                "get": _weight},

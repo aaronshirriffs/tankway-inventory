@@ -154,6 +154,10 @@
               <span class="tl">Show incoming stock</span>
               <label class="switch"><input type="checkbox" name="show_incoming" {{ 'checked' if key and key.show_incoming else '' }}><span class="track"></span></label>
             </div>
+            <div class="toggle-row">
+              <span class="tl">Show compare price <span class="muted">(compare_price + has_compare_price)</span></span>
+              <label class="switch"><input type="checkbox" name="show_compare" {{ 'checked' if key and key.show_compare else '' }}><span class="track"></span></label>
+            </div>
             <div class="toggle-row off-feature">
               <span class="tl">Show last updated <span class="muted">(always included)</span></span>
               <label class="switch"><input type="checkbox" checked disabled><span class="track"></span></label>

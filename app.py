@@ -227,6 +227,9 @@ def build_products(config):
                     wh_to_label.setdefault(w["id"], m["label"])
 
     show_price = bool(config.get("show_price"))
+    # "Compare to Price" (Odoo compare_list_price) — the strike-through "was" price
+    # shown on the eCommerce site. Per-key opt-in, same pattern as show_price.
+    show_compare = bool(config.get("show_compare"))
 
     # Customer buy price (per-key pricelist). Computed once for all products at qty 1.
     pricelist = config.get("pricelist") or None
@@ -263,6 +266,10 @@ def build_products(config):
         }
         if show_price:
             item["sales_price"] = round(p.get("lst_price") or 0.0, 2)
+        if show_compare:
+            cmp_val = round(p.get("compare_list_price") or 0.0, 2)
+            item["compare_price"] = cmp_val if cmp_val > 0 else None
+            item["has_compare_price"] = cmp_val > 0
         if pricelist and pricelist.get("id"):
             item["your_price"] = buy_prices.get(p["id"], round(p.get("lst_price") or 0.0, 2))
         item["stock"] = stock_obj
@@ -567,6 +574,7 @@ def _parse_key_form(form, warehouses, categories, locations=None, pricelists=Non
         "pricelist": pricelist,
         "show_price": form.get("show_price") == "on",
         "show_incoming": form.get("show_incoming") == "on",
+        "show_compare": form.get("show_compare") == "on",
         "rate_limit_per_minute": int(form.get("rate_limit_per_minute") or settings["default_rate_limit_per_minute"]),
         "rate_limit_daily": int(form.get("rate_limit_daily") or settings["default_rate_limit_daily"]),
         "burst_allowance": int(form.get("burst_allowance") or settings["default_burst_allowance"]),
