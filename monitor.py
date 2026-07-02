@@ -73,7 +73,9 @@ def _check_key(config):
         violations.append({"rule": rule, "product_id": (p or {}).get("id"),
                            "name": (p or {}).get("name"), "detail": detail})
 
-    products = build_products(config)
+    # clamp_stock=False so the monitor still sees raw negative stock (the API
+    # itself clamps those to 0 for customers).
+    products = build_products(config, clamp_stock=False)
     if not products:
         add("empty_feed", None, "key returns 0 products")
         return violations, 0

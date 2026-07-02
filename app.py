@@ -172,8 +172,14 @@ def _sso_auto_login():
 # ---------------------------------------------------------------------------
 # Shared product-building logic (used by /v1/products and admin "simulate")
 # ---------------------------------------------------------------------------
-def build_products(config):
-    """Return the exact customer-facing product list for a key config."""
+def build_products(config, clamp_stock=True):
+    """Return the exact customer-facing product list for a key config.
+
+    clamp_stock: when True (the customer-facing default) any negative available
+    quantity — an oversold/over-reserved state in Odoo — is shown as 0, so
+    customers never see negative stock. The correctness monitor calls this with
+    clamp_stock=False so it can still detect and report the real negatives
+    internally."""
     uid, models = odoo_client.connect()
 
     category_ids = [c["id"] for c in config.get("allowed_categories", [])]
@@ -254,6 +260,11 @@ def build_products(config):
             label = m["label"]
             total = sum(_qty(w, p["id"]) for w in m.get("warehouses", []))
             stock_obj[label] = round(stock_obj.get(label, 0.0) + total, 2)
+        if clamp_stock:
+            # Never show customers negative availability (oversold in Odoo => 0).
+            for lbl in stock_obj:
+                if stock_obj[lbl] < 0:
+                    stock_obj[lbl] = 0.0
         availability = [
             {"label": lbl, "qty": qty, "lead_time": mapping_lead.get(lbl, (-2, ""))[1]}
             for lbl, qty in stock_obj.items()
