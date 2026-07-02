@@ -2,32 +2,153 @@
 {% block title %}MDR Inventory — Activity Log{% endblock %}
 
 {% block content %}
+  <style>
+    .num{text-align:right}
+    .range-group{display:inline-flex;border:1px solid #2a2e37;border-radius:8px;overflow:hidden}
+    .range-btn{background:transparent;border:0;color:#9aa0aa;padding:7px 13px;font-size:13px;cursor:pointer}
+    .range-btn.on{background:#1d2027;color:#e7e9ee}
+    #thrToggle.on{background:#2a1708;color:#f0a020;border-color:#5c2b2b}
+    .chev{display:inline-block;width:14px;color:#9aa0aa}
+    .cust-row:hover{background:#1d2027}
+    .col.hl{color:#e7e9ee;font-weight:600}
+    .detail-wrap{padding:8px 10px;background:#15171c;border-radius:8px;margin:2px 0 8px}
+    table.act.sub{font-size:12px;width:100%}
+    table.act.sub th{color:#7d828c;font-weight:400}
+  </style>
+
   <div class="page-head">
     <div>
       <h1 class="page-title">Activity Log</h1>
-      <p class="page-subtitle">Recent API requests across all keys (newest first)</p>
+      <p class="page-subtitle">Per-customer API usage — click a customer to see recent requests</p>
     </div>
   </div>
 
+  <div class="stats">
+    <div class="stat"><div class="label">Requests today</div><div class="value v-accent">{{ total_today }}</div></div>
+    <div class="stat"><div class="label">Active customers (7d)</div><div class="value v-green">{{ active_week }}<span style="font-size:15px;opacity:.55"> / {{ total_keys }}</span></div></div>
+    <div class="stat"><div class="label">Throttled today</div><div class="value v-amber">{{ throttled_today }}</div></div>
+    <div class="stat"><div class="label">Issues today</div><div class="value" style="color:#e06b6b">{{ issues_today }}</div></div>
+  </div>
+
+  <div class="panel-actions" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:4px 0 14px">
+    <select id="custFilter" onchange="applyFilters()" style="width:auto">
+      <option value="">All customers</option>
+      {% for s in summary %}<option value="{{ s.token }}">{{ s.label }}</option>{% endfor %}
+    </select>
+    <div class="range-group">
+      <button type="button" class="range-btn on" onclick="setRange(this,'today')">Today</button>
+      <button type="button" class="range-btn" onclick="setRange(this,'week')">7 days</button>
+      <button type="button" class="range-btn" onclick="setRange(this,'month')">30 days</button>
+    </div>
+    <button type="button" id="thrToggle" class="btn-ghost" onclick="this.classList.toggle('on');applyFilters()">⚠ Throttled only</button>
+    <span class="hint" id="shownCount"></span>
+  </div>
+
   <div class="table-wrap">
-    <table class="act">
+    <table class="act" id="sumTable">
       <thead>
-        <tr><th>Timestamp (NZ)</th><th>Customer</th><th>IP</th><th>Products</th><th>Rate limit</th></tr>
+        <tr>
+          <th>Customer</th>
+          <th class="num col col-today">Today</th>
+          <th class="num col col-week">7 days</th>
+          <th class="num col col-month">30 days</th>
+          <th>Last used (NZ)</th>
+          <th>Throttled</th>
+        </tr>
       </thead>
       <tbody>
-        {% if not rows %}
-          <tr><td colspan="5" class="empty-cell">No activity recorded yet.</td></tr>
+        {% if not summary %}
+          <tr><td colspan="6" class="empty-cell">No activity recorded yet.</td></tr>
         {% endif %}
-        {% for a in rows %}
-        <tr>
-          <td>{{ a.timestamp | nzdatetime }}</td>
-          <td class="cust">{{ a.label }}</td>
-          <td>{{ a.ip }}</td>
-          <td>{{ a.product_count }}</td>
-          <td>{% if a.rate_limited %}<span class="pill" style="background:#2a1708;color:#f0a020">⚠ throttled</span>{% else %}<span class="pill active">ok</span>{% endif %}</td>
+        {% for s in summary %}
+        <tr class="cust-row" data-token="{{ s.token }}" data-label="{{ s.label|lower }}"
+            data-throttled="{{ s.throttled_today }}" data-today="{{ s.today }}"
+            data-week="{{ s.week }}" data-month="{{ s.month }}"
+            onclick="toggleDetail(this)" style="cursor:pointer">
+          <td><span class="chev">▸</span> {{ s.label }}{% if not s.enabled %} <span class="muted">(disabled)</span>{% endif %}{% if s.issues_today %} <span class="pill" style="background:#2a1414;color:#e06b6b">⚠ {{ s.issues_today }} failed</span>{% endif %}</td>
+          <td class="num col col-today hl">{{ s.today }}</td>
+          <td class="num col col-week">{{ s.week }}</td>
+          <td class="num col col-month">{{ s.month }}</td>
+          <td>{{ s.last_used | nzdatetime }}</td>
+          <td>{% if s.throttled_today %}<span class="pill" style="background:#2a1708;color:#f0a020">⚠ {{ s.throttled_today }}</span>{% else %}<span class="pill active">0</span>{% endif %}</td>
+        </tr>
+        <tr class="detail-row" data-token="{{ s.token }}" style="display:none">
+          <td colspan="6"><div class="detail-wrap" data-loaded="0"></div></td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function fmtNZ(iso){
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  const parts = new Intl.DateTimeFormat('en-NZ', {timeZone:'Pacific/Auckland', day:'numeric', month:'long', year:'numeric', hour:'numeric', minute:'2-digit', hour12:true}).formatToParts(d);
+  const g = t => (parts.find(p => p.type === t) || {}).value || '';
+  const day = parseInt(g('day'), 10);
+  const suf = (day % 100 >= 11 && day % 100 <= 13) ? 'th' : ({1:'st',2:'nd',3:'rd'}[day % 10] || 'th');
+  const ap = g('dayPeriod').toLowerCase().replace(/[^a-z]/g, '');
+  return `${g('hour')}:${g('minute')}${ap}, ${day}${suf} ${g('month')} ${g('year')}`;
+}
+
+function toggleDetail(row){
+  const detail = row.nextElementSibling;
+  const open = detail.style.display !== 'none';
+  detail.style.display = open ? 'none' : '';
+  row.querySelector('.chev').textContent = open ? '▸' : '▾';
+  if (!open){
+    const wrap = detail.querySelector('.detail-wrap');
+    if (wrap.dataset.loaded === '0') loadDetail(row.dataset.token, wrap);
+  }
+}
+async function loadDetail(token, wrap){
+  wrap.innerHTML = '<div class="muted">Loading…</div>';
+  try {
+    const r = await fetch('/inventory/keys/' + encodeURIComponent(token) + '/activity');
+    const j = await r.json();
+    const acts = (j.activity || []).slice(0, 100);
+    if (!acts.length){ wrap.innerHTML = '<div class="muted">No requests recorded.</div>'; wrap.dataset.loaded='1'; return; }
+    const stMap = {ok:['ok','#4caf7d'], throttled:['⚠ throttled','#f0a020'], unauthorized:['✖ unauthorized','#e06b6b'], error:['✖ error','#e06b6b']};
+    const rows = acts.map(a => {
+      const st = a.status || (a.rate_limited ? 'throttled' : 'ok');
+      const [lbl, col] = stMap[st] || [st, '#cfcfcf'];
+      return `<tr><td>${fmtNZ(a.timestamp)}</td><td>${a.ip || ''}</td><td>${a.product_count}</td><td style="color:${col}">${lbl}</td></tr>`;
+    }).join('');
+    wrap.innerHTML = `<table class="act sub"><thead><tr><th>Timestamp (NZ)</th><th>IP</th><th>Products</th><th>Rate limit</th></tr></thead><tbody>${rows}</tbody></table>`;
+    wrap.dataset.loaded = '1';
+  } catch(e){ wrap.innerHTML = '<div class="muted">Error: ' + e + '</div>'; }
+}
+
+function applyFilters(){
+  const cust = document.getElementById('custFilter').value;
+  const thrOnly = document.getElementById('thrToggle').classList.contains('on');
+  let shown = 0;
+  document.querySelectorAll('#sumTable tbody tr.cust-row').forEach(row => {
+    let show = true;
+    if (cust && row.dataset.token !== cust) show = false;
+    if (thrOnly && parseInt(row.dataset.throttled || '0', 10) === 0) show = false;
+    row.style.display = show ? '' : 'none';
+    if (!show){ row.nextElementSibling.style.display = 'none'; row.querySelector('.chev').textContent = '▸'; }
+    if (show) shown++;
+  });
+  document.getElementById('shownCount').textContent = shown + ' customer' + (shown === 1 ? '' : 's');
+}
+
+function setRange(btn, key){
+  document.querySelectorAll('.range-btn').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  document.querySelectorAll('.col').forEach(c => c.classList.remove('hl'));
+  document.querySelectorAll('.col-' + key).forEach(c => c.classList.add('hl'));
+  const tbody = document.querySelector('#sumTable tbody');
+  const pairs = [...tbody.querySelectorAll('tr.cust-row')].map(r => [r, r.nextElementSibling, parseInt(r.dataset[key] || '0', 10)]);
+  pairs.sort((a, b) => b[2] - a[2]);
+  pairs.forEach(([r, d]) => { tbody.appendChild(r); tbody.appendChild(d); });
+}
+
+applyFilters();
+</script>
 {% endblock %}

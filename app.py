@@ -754,20 +754,53 @@ def run_monitor_now():
 @tools_required
 def admin_activity_log():
     keys = storage.load_keys()
-    rows = []
+    today = datetime.now(NZT).date()
+
+    def _nzdate(ts):
+        try:
+            d = datetime.fromisoformat(str(ts))
+        except (ValueError, TypeError):
+            return None
+        if d.tzinfo is None:
+            d = d.replace(tzinfo=timezone.utc)
+        return d.astimezone(NZT).date()
+
+    summary = []
     for tok, cfg in keys.items():
+        t = w = mo = thr = iss = 0
         for a in storage.get_activity(tok):
-            rows.append({
-                "timestamp": a.get("timestamp"),
-                "label": cfg.get("label", "—"),
-                "ip": a.get("ip"),
-                "product_count": a.get("product_count"),
-                "rate_limited": a.get("rate_limited"),
-            })
-    rows.sort(key=lambda r: r.get("timestamp") or "", reverse=True)
+            d = _nzdate(a.get("timestamp"))
+            if d is None:
+                continue
+            delta = (today - d).days
+            is_today = d == today
+            if is_today:
+                t += 1
+            if 0 <= delta < 7:
+                w += 1
+            if 0 <= delta < 30:
+                mo += 1
+            if is_today and a.get("rate_limited"):
+                thr += 1
+            if is_today and a.get("status") in ("unauthorized", "error"):
+                iss += 1
+        summary.append({
+            "token": tok, "label": cfg.get("label", "—"),
+            "enabled": cfg.get("enabled", False),
+            "today": t, "week": w, "month": mo,
+            "throttled_today": thr, "issues_today": iss,
+            "last_used": cfg.get("last_used"),
+        })
+    summary.sort(key=lambda s: s["today"], reverse=True)
     return render_template(
         "activity_log.html",
-        username=current_user.id, sidebar_active="activity", rows=rows,
+        username=current_user.id, sidebar_active="activity",
+        summary=summary,
+        total_today=sum(s["today"] for s in summary),
+        active_week=sum(1 for s in summary if s["week"] > 0),
+        total_keys=len(summary),
+        throttled_today=sum(s["throttled_today"] for s in summary),
+        issues_today=sum(s["issues_today"] for s in summary),
     )
 
 
