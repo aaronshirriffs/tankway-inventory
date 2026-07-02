@@ -78,3 +78,16 @@ def send_with_attachment(to, subject, body, filename, data, fmt, reply_to=None):
 
     raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
     service.users().messages().send(userId="me", body={"raw": raw}).execute()
+
+
+def send_plain(to, subject, body, reply_to=None):
+    """Send a plain-text email (no attachment). `to` may be comma-separated.
+    Used by the correctness monitor to alert on anomalies."""
+    service = _get_service()
+    msg = MIMEText(body)
+    msg["To"] = to
+    msg["Subject"] = subject
+    if reply_to:
+        msg["Reply-To"] = reply_to
+    raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+    service.users().messages().send(userId="me", body={"raw": raw}).execute()

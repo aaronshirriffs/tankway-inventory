@@ -40,5 +40,47 @@
     </div>
   </div>
 
+  <div class="section-label">Data correctness monitor</div>
+  <div class="info-card" style="margin-bottom:10px">
+    {% if monitor_report %}
+      {% set affected = monitor_report.results | selectattr('violations') | list | length %}
+      <div class="value">
+        {% if monitor_report.ok %}
+          <span class="dot ok"></span>All checks passing
+        {% else %}
+          <span class="dot bad"></span>{{ monitor_report.total_violations }} anomaly(ies) across {{ affected }} customer(s)
+        {% endif %}
+      </div>
+      <div class="hint">Last checked: {{ monitor_report.checked_at | nzdatetime }}. Auto-runs daily at 7:00am NZ; emails Aaron only when a new/changed anomaly appears.</div>
+    {% else %}
+      <div class="value">Not run yet</div>
+      <div class="hint">Runs automatically daily at 7:00am NZ, or run it now.</div>
+    {% endif %}
+    <form method="post" action="{{ url_for('run_monitor_now') }}" style="margin-top:12px">
+      <button type="submit" class="btn-ghost">Run checks now</button>
+    </form>
+  </div>
+
+  {% if monitor_report and not monitor_report.ok %}
+    {% for r in monitor_report.results if r.violations %}
+      <div class="info-card" style="margin-bottom:8px">
+        <div class="label" style="margin-bottom:8px">{{ r.label }} — {{ r.violations | length }} issue(s)</div>
+        <table class="act">
+          <thead><tr><th>Check</th><th>Product</th><th>Detail</th></tr></thead>
+          <tbody>
+            {% for v in r.violations[:50] %}
+            <tr>
+              <td>{{ rule_labels.get(v.rule, v.rule) }}</td>
+              <td>{% if v.product_id %}[{{ v.product_id }}] {{ v.name }}{% else %}—{% endif %}</td>
+              <td>{{ v.detail }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% if r.violations | length > 50 %}<div class="hint">… and {{ r.violations | length - 50 }} more</div>{% endif %}
+      </div>
+    {% endfor %}
+  {% endif %}
+
   <div class="hint">Server time: {{ now }} (New Zealand). Request/rate-limit counters are in-memory and reset when the service restarts.</div>
 {% endblock %}

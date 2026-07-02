@@ -275,9 +275,18 @@
 
       {% if key %}
       <hr class="divider">
-      <button type="button" class="btn-sim" onclick="simulate('{{ key.token }}')">Simulate this key → preview live JSON</button>
+      <button type="button" class="btn-sim" onclick="simulate('{{ key.token }}')">Simulate this key → preview exactly what this customer receives</button>
       <div class="sim-panel" id="sim-{{ key.token }}" style="display:none">
-        <pre class="code-block" id="out-{{ key.token }}"></pre>
+        <div class="sim-toolbar">
+          <div class="view-switch">
+            <button type="button" class="vs-btn active" data-view="table" onclick="setSimView('{{ key.token }}','table')">Table</button>
+            <button type="button" class="vs-btn" data-view="json" onclick="setSimView('{{ key.token }}','json')">JSON</button>
+          </div>
+          <input type="text" class="sim-search" id="search-{{ key.token }}" placeholder="Filter products…" oninput="filterSimTable('{{ key.token }}')">
+        </div>
+        <div class="sim-summary" id="summary-{{ key.token }}"></div>
+        <div class="sim-table-wrap" id="tablewrap-{{ key.token }}"></div>
+        <pre class="code-block" id="out-{{ key.token }}" style="display:none"></pre>
         <div class="fetched"><span id="fetched-{{ key.token }}"></span>
           <a class="topbar-link" href="javascript:void(0)" onclick="simulate('{{ key.token }}')">↻ Refresh</a></div>
       </div>
@@ -583,19 +592,94 @@ async function sendExport(token, btn){
   finally { btn.disabled = false; btn.textContent = orig; }
 }
 
-/* ----- simulate (live JSON preview) ----- */
+/* ----- simulate: Table + JSON views of exactly what a customer receives ----- */
+const SIMDATA = {};
 async function simulate(token){
   const panel = document.getElementById('sim-' + token);
-  const el = document.getElementById('out-' + token);
   if (panel) panel.style.display = 'block';
+  const wrap = document.getElementById('tablewrap-' + token);
+  const el = document.getElementById('out-' + token);
+  wrap.innerHTML = '<div class="muted">Querying Odoo live…</div>';
   el.textContent = 'Querying Odoo live…';
   try {
     const r = await fetch('/inventory/keys/' + encodeURIComponent(token) + '/simulate');
     const j = await r.json();
+    SIMDATA[token] = j;
     el.textContent = JSON.stringify(j, null, 2);
+    renderSimSummary(token);
+    renderSimTable(token);
     const f = document.getElementById('fetched-' + token);
     if (f) f.textContent = 'Last fetched: ' + new Date().toLocaleString();
-  } catch(e){ el.textContent = 'Error: ' + e; }
+  } catch(e){ wrap.innerHTML = '<div class="muted">Error: ' + e + '</div>'; el.textContent = 'Error: ' + e; }
+}
+function simColumns(products){
+  const labels = [];
+  let hasSales=false, hasCompare=false, hasYour=false, hasIncoming=false;
+  products.forEach(p => {
+    Object.keys(p.stock||{}).forEach(l => { if(!labels.includes(l)) labels.push(l); });
+    if ('sales_price' in p) hasSales=true;
+    if ('compare_price' in p) hasCompare=true;
+    if ('your_price' in p) hasYour=true;
+    if ('incoming' in p) hasIncoming=true;
+  });
+  return {labels, hasSales, hasCompare, hasYour, hasIncoming};
+}
+function fmtMoney(v){ return (v==null||v==='')?'':Number(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function renderSimTable(token){
+  const j = SIMDATA[token]; if(!j) return;
+  const products = j.products||[];
+  const wrap = document.getElementById('tablewrap-' + token);
+  if(!products.length){ wrap.innerHTML='<div class="muted">No products returned for this key.</div>'; return; }
+  const c = simColumns(products);
+  let h = '<table class="sim-table"><thead><tr><th>Name</th><th>SKU</th>';
+  c.labels.forEach(l => { h += '<th class="num">'+escHtml(l)+'</th><th>'+escHtml(l)+' lead</th>'; });
+  if(c.hasSales) h += '<th class="num">Sales</th>';
+  if(c.hasCompare) h += '<th class="num">Compare</th>';
+  if(c.hasYour) h += '<th class="num">Buy</th>';
+  if(c.hasIncoming) h += '<th>Incoming</th>';
+  h += '</tr></thead><tbody>';
+  products.forEach(p => {
+    const avail = {}; (p.availability||[]).forEach(a => avail[a.label]=a);
+    h += '<tr><td>'+escHtml(p.name||'')+'</td><td>'+escHtml(p.sku||'')+'</td>';
+    c.labels.forEach(l => {
+      const q = (p.stock||{})[l];
+      h += '<td class="num">'+(q==null?'':q)+'</td><td>'+escHtml((avail[l]||{}).lead_time||'')+'</td>';
+    });
+    if(c.hasSales) h += '<td class="num">'+fmtMoney(p.sales_price)+'</td>';
+    if(c.hasCompare) h += '<td class="num">'+fmtMoney(p.compare_price)+'</td>';
+    if(c.hasYour) h += '<td class="num">'+fmtMoney(p.your_price)+'</td>';
+    if(c.hasIncoming){
+      const inc=(p.incoming||[]).map(s=>s.quantity+' on '+s.expected_date+' ('+escHtml(s.label||'')+')').join('; ');
+      h += '<td>'+inc+'</td>';
+    }
+    h += '</tr>';
+  });
+  wrap.innerHTML = h + '</tbody></table>';
+  filterSimTable(token);
+}
+function renderSimSummary(token){
+  const j=SIMDATA[token]; if(!j) return;
+  const p=j.products||[]; const c=simColumns(p);
+  const bits=[(j.count!=null?j.count:p.length)+' products'];
+  if(c.hasSales) bits.push(p.filter(x=>x.sales_price).length+' priced');
+  if(c.hasCompare) bits.push(p.filter(x=>x.has_compare_price).length+' with compare price');
+  if(c.hasIncoming) bits.push(p.filter(x=>(x.incoming||[]).length).length+' with incoming');
+  document.getElementById('summary-'+token).textContent = bits.join('  ·  ');
+}
+function setSimView(token, view){
+  const panel=document.getElementById('sim-'+token);
+  panel.querySelectorAll('.vs-btn').forEach(b=>b.classList.toggle('active', b.dataset.view===view));
+  const tableMode = view==='table';
+  document.getElementById('tablewrap-'+token).style.display = tableMode?'block':'none';
+  document.getElementById('summary-'+token).style.display = tableMode?'block':'none';
+  document.getElementById('search-'+token).style.display = tableMode?'block':'none';
+  document.getElementById('out-'+token).style.display = tableMode?'none':'block';
+}
+function filterSimTable(token){
+  const q=(document.getElementById('search-'+token).value||'').trim().toLowerCase();
+  document.querySelectorAll('#tablewrap-'+token+' tbody tr').forEach(r=>{
+    r.style.display = !q || r.textContent.toLowerCase().indexOf(q)>=0 ? '' : 'none';
+  });
 }
 
 /* ----- NZ-local date helpers (timestamps are stored UTC) ----- */

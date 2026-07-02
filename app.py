@@ -31,6 +31,7 @@ import docgen
 import exporter
 import gmail_client
 import columns
+import monitor
 
 load_dotenv(dotenv_path=Path(__file__).parent / ".env")
 
@@ -722,7 +723,20 @@ def admin_status():
         req_today=req_today, rl_today=rl_today,
         api_name=API_NAME, api_host=API_HOST,
         now=datetime.now(NZT).isoformat(timespec="seconds"),
+        monitor_report=monitor.latest_report(),
+        rule_labels=monitor.RULE_LABELS,
     )
+
+
+@app.route("/inventory/monitor/run", methods=["POST"])
+@tools_required
+def run_monitor_now():
+    """Run the correctness checks on demand (no email) and show the results."""
+    try:
+        monitor.run_now()
+    except Exception as e:
+        app.logger.exception("manual monitor run failed: %s", e)
+    return redirect(url_for("admin_status"))
 
 
 @app.route("/inventory/activity-log")
@@ -869,9 +883,16 @@ def download_doc(name):
 # ---------------------------------------------------------------------------
 try:
     from apscheduler.schedulers.background import BackgroundScheduler
+    from apscheduler.triggers.cron import CronTrigger
     _export_scheduler = BackgroundScheduler(daemon=True)
     _export_scheduler.add_job(exporter.run_due_exports, "interval", minutes=5,
                               id="email_exports", coalesce=True, max_instances=1)
+    # Daily correctness check at 07:00 NZ. Emails aaron@ only on new/changed
+    # anomalies (see monitor.run_and_alert). Cron (not interval) so it fires at a
+    # fixed wall-clock time regardless of restarts.
+    _export_scheduler.add_job(monitor.run_and_alert,
+                              CronTrigger(hour=7, minute=0, timezone=NZT),
+                              id="correctness_monitor", coalesce=True, max_instances=1)
     _export_scheduler.start()
 except Exception:
     app.logger.exception("Email-export scheduler failed to start; live API unaffected.")
