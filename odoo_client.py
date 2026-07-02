@@ -233,17 +233,19 @@ def stock_by_location(models, uid, product_ids, location_ids):
 
 def get_incoming_stock(models, uid, product_ids):
     """
-    Confirmed incoming stock per product, derived from purchase order lines.
+    Confirmed incoming stock per product, derived from the incoming RECEIPT
+    transfers (stock.move on incoming pickings), NOT the purchase order lines.
 
-    Includes lines whose purchase order is in state 'purchase' or 'done' and that
-    are not yet fully received (ordered qty > received qty — i.e. an incoming
-    picking still outstanding). The destination warehouse is resolved via the
-    order's picking type so the caller can map it to a customer-facing label.
+    Includes moves on incoming pickings that are not yet done/cancelled. The
+    expected date is the move's scheduled date, which equals the receipt's
+    Scheduled Date — the value that changes during arrival forecasting — rather
+    than the purchase order's original planned date (which does not move). The
+    destination warehouse is resolved via the move's picking type.
 
     Returns:
         { product_id: [ {quantity, expected_date, warehouse_id}, ... ] }
-        - quantity:      ordered quantity not yet received
-        - expected_date: date_planned as "YYYY-MM-DD" (or None)
+        - quantity:      qty on the receipt not yet received (uom_qty - done)
+        - expected_date: the receipt's scheduled date as "YYYY-MM-DD" (or None)
         - warehouse_id:  destination warehouse id (or None if undetermined)
     """
     _, db, _, key = _creds()
@@ -251,51 +253,47 @@ def get_incoming_stock(models, uid, product_ids):
     if not product_ids:
         return result
 
-    lines = models.execute_kw(
+    # purchase_line_id != False keeps this to PURCHASE receipts (arrival
+    # forecasting) — excludes customer returns and internal transfers, which
+    # are also 'incoming' picking types.
+    moves = models.execute_kw(
         db, uid, key,
-        "purchase.order.line", "search_read",
+        "stock.move", "search_read",
         [[["product_id", "in", list(product_ids)],
-          ["order_id.state", "in", ["purchase", "done"]]]],
-        {"fields": ["product_id", "product_qty", "qty_received", "date_planned", "order_id"]},
+          ["picking_type_id.code", "=", "incoming"],
+          ["purchase_line_id", "!=", False],
+          ["state", "in", ["assigned", "confirmed", "waiting", "partially_available"]]]],
+        {"fields": ["product_id", "product_uom_qty", "quantity_done", "date", "picking_type_id"]},
     )
-    if not lines:
+    if not moves:
         return result
 
-    # Resolve each PO's destination warehouse via picking_type_id.warehouse_id.
-    order_ids = list({l["order_id"][0] for l in lines if l.get("order_id")})
-    po_wh = {}
+    # Resolve each move's destination warehouse via picking_type_id.warehouse_id.
+    ptype_ids = list({m["picking_type_id"][0] for m in moves if m.get("picking_type_id")})
+    ptype_wh = {}
     try:
-        orders = models.execute_kw(
-            db, uid, key,
-            "purchase.order", "read",
-            [order_ids], {"fields": ["picking_type_id"]},
-        )
-        ptype_ids = list({o["picking_type_id"][0] for o in orders if o.get("picking_type_id")})
         ptypes = models.execute_kw(
             db, uid, key,
             "stock.picking.type", "read",
             [ptype_ids], {"fields": ["warehouse_id"]},
         ) if ptype_ids else []
         ptype_wh = {p["id"]: (p["warehouse_id"][0] if p.get("warehouse_id") else None) for p in ptypes}
-        for o in orders:
-            pt = o.get("picking_type_id")
-            po_wh[o["id"]] = ptype_wh.get(pt[0]) if pt else None
     except Exception:
-        po_wh = {}
+        ptype_wh = {}
 
-    for l in lines:
-        remaining = (l.get("product_qty") or 0.0) - (l.get("qty_received") or 0.0)
+    for m in moves:
+        remaining = (m.get("product_uom_qty") or 0.0) - (m.get("quantity_done") or 0.0)
         if remaining <= 0:
             continue
-        if not l.get("product_id"):
+        if not m.get("product_id"):
             continue
-        pid = l["product_id"][0]
-        dp = l.get("date_planned") or ""
-        oid = l["order_id"][0] if l.get("order_id") else None
+        pid = m["product_id"][0]
+        d = m.get("date") or ""
+        pt = m.get("picking_type_id")
         result.setdefault(pid, []).append({
             "quantity": round(remaining, 2),
-            "expected_date": (str(dp)[:10] if dp else None),
-            "warehouse_id": po_wh.get(oid),
+            "expected_date": (str(d)[:10] if d else None),
+            "warehouse_id": ptype_wh.get(pt[0]) if pt else None,
         })
 
     for pid in result:
