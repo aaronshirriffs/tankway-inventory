@@ -206,7 +206,7 @@ def new_key(label, allowed_categories=None, excluded_skus=None,
             warehouse_mappings=None, show_price=False, expiry=None,
             rate_limit_per_minute=5, rate_limit_daily=200, burst_allowance=3,
             excluded_categories=None, show_incoming=False, pricelist=None,
-            export=None, show_compare=False):
+            export=None, show_compare=False, show_website_url=False):
     """Create and persist a new key. Returns (token, config)."""
     token = "mdr_" + secrets.token_urlsafe(32)
     config = {
@@ -224,6 +224,7 @@ def new_key(label, allowed_categories=None, excluded_skus=None,
         "show_price": bool(show_price),
         "show_incoming": bool(show_incoming),
         "show_compare": bool(show_compare),
+        "show_website_url": bool(show_website_url),
         "rate_limit_per_minute": int(rate_limit_per_minute),
         "rate_limit_daily": int(rate_limit_daily),
         "burst_allowance": int(burst_allowance),

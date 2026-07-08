@@ -111,6 +111,7 @@ def build_export_file(config):
     working["show_price"] = bool(on.get("price_exc") or on.get("price_inc"))
     working["show_incoming"] = bool(on.get("incoming"))
     working["show_compare"] = bool(on.get("compare"))
+    working["show_website_url"] = bool(on.get("website_url"))
     products = build_products(working)
 
     # extras are always fetched now: the Name column appends each product's

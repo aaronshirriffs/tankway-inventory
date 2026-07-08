@@ -142,7 +142,8 @@ def fetch_products(models, uid, category_ids, excluded_skus, excluded_category_i
         # the variant's price_extra, so different sizes/colours of one template
         # carry their correct prices. For non-variant products lst_price == list_price.
         {"fields": ["id", "name", "default_code", "lst_price", "write_date",
-                    "compare_list_price", "product_template_attribute_value_ids"],
+                    "compare_list_price", "website_url",
+                    "product_template_attribute_value_ids"],
          "order": "name"},
     )
     _append_variant_suffix(models, uid, products)

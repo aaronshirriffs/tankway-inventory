@@ -112,6 +112,7 @@ COLUMNS = [
     {"toggle": "buy_price",     "label": "Your Buy Price (GST exc)",         "get": _buy_price},
     {"toggle": "weight",        "label": "Volumetric Weight",                "get": _weight},
     {"toggle": "ecom_category", "label": "B2B portal category/s",            "get": _extra("ecom_category")},
+    {"toggle": "website_url",   "label": "MDR Website URL",                  "get": lambda i, c, e: i.get("website_url") or ""},
 ]
 
 COLUMN_TOGGLES = [c["toggle"] for c in COLUMNS if c["toggle"]]
