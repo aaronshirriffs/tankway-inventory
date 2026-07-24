@@ -43,3 +43,9 @@ data/
 *.bak
 *~
 monitor_state.json
+
+# Runtime activity log (customer IPs + usage) — data, not code; churns constantly
+activity.json
+
+# Timestamped backups, e.g. app.py.bak-preSSO
+*.bak-*

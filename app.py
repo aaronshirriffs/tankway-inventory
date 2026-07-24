@@ -243,6 +243,10 @@ def build_products(config, clamp_stock=True):
     # shown on the eCommerce site. Per-key opt-in, same pattern as show_price.
     show_compare = bool(config.get("show_compare"))
     show_url = bool(config.get("show_website_url"))  # public product page link
+    # B2B/portal (website) categories — same data as the email export's
+    # "B2B portal category/s" column. Per-key opt-in; only queried when enabled.
+    show_portal = bool(config.get("show_portal_categories"))
+    portal_map = odoo_client.get_portal_categories(models, uid, product_ids) if show_portal else {}
 
     # Customer buy price (per-key pricelist). Computed once for all products at qty 1.
     pricelist = config.get("pricelist") or None
@@ -287,6 +291,8 @@ def build_products(config, clamp_stock=True):
             if wu.endswith("#attr="):     # empty variant fragment on non-variants
                 wu = wu[:-6]
             item["website_url"] = (WEBSITE_BASE_URL + wu) if wu else None
+        if show_portal:
+            item["portal_categories"] = portal_map.get(p["id"], [])
         if show_price:
             item["sales_price"] = round(p.get("lst_price") or 0.0, 2)
         if show_compare:
@@ -404,7 +410,11 @@ def docs():
             "name": "Chauvet Maverick MK3 Spot",
             "sku": "CHV-MK3-SPOT",
             "last_updated": "2026-06-05 21:14:02",
+            "website_url": (WEBSITE_BASE_URL or "https://www.mdrlighting.co.nz") + "/shop/chauvet-maverick-mk3-spot-1423",
+            "portal_categories": ["Lighting > Moving Heads", "Brands > Chauvet"],
             "sales_price": 4299.00,
+            "compare_price": 4799.00,
+            "has_compare_price": True,
             "your_price": 3869.10,
             "stock": {lbl: q for (lbl, _), q in zip(ex, [7, 3])},
             "availability": [{"label": lbl, "qty": q, "lead_time": lead}
@@ -599,6 +609,7 @@ def _parse_key_form(form, warehouses, categories, locations=None, pricelists=Non
         "show_incoming": form.get("show_incoming") == "on",
         "show_compare": form.get("show_compare") == "on",
         "show_website_url": form.get("show_website_url") == "on",
+        "show_portal_categories": form.get("show_portal_categories") == "on",
         "rate_limit_per_minute": int(form.get("rate_limit_per_minute") or settings["default_rate_limit_per_minute"]),
         "rate_limit_daily": int(form.get("rate_limit_daily") or settings["default_rate_limit_daily"]),
         "burst_allowance": int(form.get("burst_allowance") or settings["default_burst_allowance"]),
@@ -714,6 +725,32 @@ def export_preview(token):
     import io as _io
     return send_file(_io.BytesIO(data), as_attachment=True, download_name=filename,
                      mimetype=gmail_client.MIMETYPES[fmt])
+
+
+@app.route("/inventory/config-backup")
+@admin_required
+def config_backup():
+    """Download a dated archive of the config that CANNOT live in git.
+
+    keys.json holds customer API tokens (and each customer's categories,
+    warehouse mappings, pricelist, toggles, rate limits, export settings), so it
+    is gitignored. The code restores from GitHub; this archive restores the rest.
+    Keep a copy off this server — see README §9 (Rebuild from scratch)."""
+    import io as _io
+    import tarfile
+    here = os.path.dirname(os.path.abspath(__file__))
+    wanted = ["keys.json", "settings.json", "warehouse_settings.json", "category_settings.json"]
+    buf = _io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+        for name in wanted:
+            path = os.path.join(here, name)
+            if os.path.exists(path):
+                tar.add(path, arcname=name)
+    buf.seek(0)
+    stamp = datetime.now(NZT).strftime("%Y%m%d-%H%M")
+    return send_file(buf, as_attachment=True,
+                     download_name=f"mdr-inventory-config-{stamp}.tar.gz",
+                     mimetype="application/gzip")
 
 
 @app.route("/inventory/logo.png")

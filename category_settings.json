@@ -101,6 +101,26 @@
       "complete_name": "DISCOUNTED / EUROTRUSS"
     },
     {
+      "id": 551,
+      "complete_name": "DISCOUNTED / FBT"
+    },
+    {
+      "id": 559,
+      "complete_name": "DISCOUNTED / FBT / AX SERIES - AMPLIFIERS"
+    },
+    {
+      "id": 558,
+      "complete_name": "DISCOUNTED / FBT / X Accessories"
+    },
+    {
+      "id": 556,
+      "complete_name": "DISCOUNTED / FBT / X SERIES - Active Speaker Systems"
+    },
+    {
+      "id": 557,
+      "complete_name": "DISCOUNTED / FBT / X SERIES - Passive Speaker Systems"
+    },
+    {
       "id": 323,
       "complete_name": "DISCOUNTED / GLP"
     },
@@ -321,6 +341,14 @@
       "complete_name": "DISCOUNTED / SPARKULAR"
     },
     {
+      "id": 329,
+      "complete_name": "DISCOUNTED / SRS HOIST CONTROLLERS"
+    },
+    {
+      "id": 353,
+      "complete_name": "DISCOUNTED / STRONG LIGHTING"
+    },
+    {
       "id": 331,
       "complete_name": "DISCOUNTED / Special Packages"
     },
@@ -331,6 +359,46 @@
     {
       "id": 304,
       "complete_name": "DISCOUNTED / TOURPRO"
+    },
+    {
+      "id": 297,
+      "complete_name": "SENNHEISER"
+    },
+    {
+      "id": 413,
+      "complete_name": "SENNHEISER / 2000 Series"
+    },
+    {
+      "id": 412,
+      "complete_name": "SENNHEISER / 6000 series"
+    },
+    {
+      "id": 341,
+      "complete_name": "SENNHEISER / IEM"
+    },
+    {
+      "id": 372,
+      "complete_name": "SENNHEISER / Miscellaneous"
+    },
+    {
+      "id": 390,
+      "complete_name": "SENNHEISER / Pro Audio"
+    },
+    {
+      "id": 540,
+      "complete_name": "SENNHEISER / SPECTERA"
+    },
+    {
+      "id": 339,
+      "complete_name": "SENNHEISER / Wired Microphones"
+    },
+    {
+      "id": 340,
+      "complete_name": "SENNHEISER / Wireless Microphones"
+    },
+    {
+      "id": 305,
+      "complete_name": "TURBOSOUND"
     }
   ]
 }

@@ -56,8 +56,15 @@ Authorization: Bearer YOUR_API_KEY</code></pre>
      return <code>401</code>. Keep your key secret — it identifies your account and controls what you can see.</p>
 
   <h2><span class="method">GET</span> <span class="endpoint">/v1/products</span></h2>
-  <p>Returns the products visible to your key, each with current on-hand availability grouped into the
-     stock labels configured for your account.</p>
+  <p>Returns the products visible to your key, each with current <strong>available</strong> stock grouped
+     into the stock labels configured for your account.</p>
+
+  <h3>Which products appear</h3>
+  <p>Your feed contains the products in the categories enabled for your account that are also
+     <strong>published on the MDR website</strong>. If a product is unpublished it will not appear, even
+     if it is in one of your categories. Some entries are <strong>packages / kits</strong> assembled from
+     several components &mdash; for those, the quantity shown is how many complete packages can currently
+     be made from component stock.</p>
 
   <h3>Response fields</h3>
   <table>
@@ -66,11 +73,15 @@ Authorization: Bearer YOUR_API_KEY</code></pre>
     <tr><td><code>name</code></td><td>string</td><td>Product name.</td></tr>
     <tr><td><code>sku</code></td><td>string · nullable</td><td>Product SKU / internal reference.</td></tr>
     <tr><td><code>last_updated</code></td><td>string</td><td>UTC timestamp the product was last modified.</td></tr>
+    <tr><td><code>website_url</code></td><td>string · nullable · optional</td><td>Link to this product&rsquo;s page on the MDR website, ready to use in your own listings. <code>null</code> if it has no public page. Only present if enabled for your key.</td></tr>
+    <tr><td><code>portal_categories</code></td><td>array · optional</td><td>The product&rsquo;s B2B / portal categories from the MDR website, each as <code>"Parent &gt; Name"</code>, e.g. <code>["Lighting &gt; Moving Heads"]</code>. An empty array means the product isn&rsquo;t filed under any portal category. Only present if enabled for your key.</td></tr>
     <tr><td><code>sales_price</code></td><td>number · optional</td><td>Recommended retail (list) unit price. Only present if pricing is enabled for your key.</td></tr>
+    <tr><td><code>compare_price</code></td><td>number · nullable · optional</td><td>The &ldquo;was&rdquo; / strike-through comparison price, for showing a saving against <code>sales_price</code>. <code>null</code> when the product has no comparison price. Only present if enabled for your key.</td></tr>
+    <tr><td><code>has_compare_price</code></td><td>boolean · optional</td><td>Convenience flag &mdash; <code>true</code> when <code>compare_price</code> is set, so you can branch without null-checking. Accompanies <code>compare_price</code>.</td></tr>
     <tr><td><code>your_price</code></td><td>number · optional</td><td>Your account&rsquo;s unit buy price for this product (qty 1), under your assigned pricelist. Only present if a pricelist is assigned to your key.</td></tr>
-    <tr><td><code>stock</code></td><td>object</td><td>On-hand quantity by label, e.g. <code>{ "Available Immediately": 12 }</code>. Keys are the stock labels configured for your account; values are summed on-hand quantities.</td></tr>
-    <tr><td><code>availability</code></td><td>array</td><td>The same stock broken out per label, each with a delivery lead time: <code>{ "label", "qty", "lead_time" }</code>. <code>lead_time</code> is a short text such as <code>"5-7 days"</code>; an empty value means the item is on hand and ready now.</td></tr>
-    <tr><td><code>incoming</code></td><td>array · optional</td><td>Confirmed stock on order but not yet received: <code>{ "quantity", "expected_date", "label" }</code>. Only present if incoming stock is enabled for your key; an empty array means none on order.</td></tr>
+    <tr><td><code>stock</code></td><td>object</td><td><strong>Available</strong> quantity by label, e.g. <code>{ "Available Immediately": 12 }</code>. Quantities are free to sell &mdash; stock already reserved against confirmed orders is excluded, so what you see is what can actually be ordered.</td></tr>
+    <tr><td><code>availability</code></td><td>array</td><td>The same quantities broken out per label, each with a delivery lead time: <code>{ "label", "qty", "lead_time" }</code>. <code>lead_time</code> is a short text such as <code>"5-7 days"</code>; an empty value means the item is available now.</td></tr>
+    <tr><td><code>incoming</code></td><td>array · optional</td><td>Stock on a scheduled inbound delivery that has not yet arrived: <code>{ "quantity", "expected_date", "label" }</code>, where <code>expected_date</code> is the delivery&rsquo;s scheduled arrival date. Only present if incoming stock is enabled for your key; an empty array means none due in.</td></tr>
   </table>
 
   <h3>Example response</h3>
@@ -80,9 +91,12 @@ Authorization: Bearer YOUR_API_KEY</code></pre>
   <p>The <code>stock</code> object and the <code>availability</code> array describe the
      <strong>same quantities</strong> &mdash; <code>stock</code> is the simple <code>{ label: qty }</code>
      form, while <code>availability</code> adds a <code>lead_time</code> per label. The lead time is a short
-     text such as <code>"5-7 days"</code>; an empty value means the item is on hand and ready to ship
+     text such as <code>"5-7 days"</code>; an empty value means the item is available now and ready to ship
      (a non-empty value typically indicates stock held at a location with that delivery lead time, for
      example an overseas partner warehouse). Use whichever form suits your integration.</p>
+  <p>These quantities are <strong>available (free-to-sell)</strong> stock, not raw shelf count: anything
+     already reserved against a confirmed order has been deducted. This means the number you see is what
+     you can actually order today, so you will not be offered stock that is already committed elsewhere.</p>
   {% if labels %}
   <p>Stock labels currently in use:</p>
   <table>
@@ -95,10 +109,13 @@ Authorization: Bearer YOUR_API_KEY</code></pre>
 
   <h3>Incoming stock</h3>
   <p>If incoming stock is enabled for your key, each product includes an <code>incoming</code> array of
-     confirmed purchase orders not yet received. Each entry has a <code>quantity</code>, an
-     <code>expected_date</code> (<code>YYYY-MM-DD</code>), and a <code>label</code> indicating the destination.
-     A product with nothing on order returns <code>"incoming": []</code>. Use this to show customers when
-     out-of-stock items are due back in.</p>
+     inbound deliveries that are scheduled but not yet received. Each entry has a <code>quantity</code>, an
+     <code>expected_date</code> (<code>YYYY-MM-DD</code>) &mdash; the delivery&rsquo;s scheduled arrival date
+     &mdash; and a <code>label</code> indicating the destination. A product with nothing due in returns
+     <code>"incoming": []</code>. Use this to show customers when out-of-stock items are due back in.</p>
+  <p class="muted">Only live, scheduled deliveries are listed. If a delivery is cancelled it disappears from
+     <code>incoming</code>, and if the arrival date is re-planned the new date is reflected here &mdash; so
+     the dates track the current delivery schedule rather than the date originally ordered.</p>
 
   <h2><span class="method">GET</span> <span class="endpoint">/v1/status</span> <span class="pill">no auth</span></h2>
   <p>Lightweight health check for monitoring. No API key required.</p>

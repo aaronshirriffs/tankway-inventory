@@ -1,0 +1,23 @@
+## Install to: /etc/systemd/system/inventory.service
+## Then:  systemctl daemon-reload && systemctl enable --now inventory.service
+##
+## NOTE: the live service runs gunicorn, applied as a drop-in override in
+## deploy/inventory.service.d-gunicorn.conf (see that file). This base unit's
+## ExecStart is the plain Flask dev server and is overridden by the drop-in.
+[Unit]
+Description=MDR Inventory API
+After=network.target
+
+[Service]
+User=root
+WorkingDirectory=/root/inventory
+Environment="PATH=/root/inventory/venv/bin"
+# Shared secret (SSO with the Tankway hub) + this app's own Odoo credentials.
+EnvironmentFile=/etc/tankway/shared.env
+EnvironmentFile=/root/inventory/.env
+ExecStart=/root/inventory/venv/bin/python app.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

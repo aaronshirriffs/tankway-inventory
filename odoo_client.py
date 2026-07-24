@@ -302,6 +302,50 @@ def get_incoming_stock(models, uid, product_ids):
     return result
 
 
+def get_portal_categories(models, uid, product_ids):
+    """
+    B2B / portal (website) categories per product, as ['Parent > Name', ...].
+
+    Same Odoo source and formatting as the email export's "B2B portal category/s"
+    column (product.product.public_categ_ids resolved via product.public.category),
+    so the API and the export always agree. Only called when a key has the portal
+    categories toggle enabled, so the default Odoo footprint is unchanged.
+
+    Returns { product_id: [name, ...] } — products with no portal category are
+    simply absent from the mapping.
+    """
+    _, db, _, key = _creds()
+    out = {}
+    if not product_ids:
+        return out
+
+    recs = models.execute_kw(
+        db, uid, key,
+        "product.product", "read",
+        [list(product_ids)], {"fields": ["public_categ_ids"]},
+    )
+    pc_ids = sorted({i for r in recs for i in (r.get("public_categ_ids") or [])})
+    pc_name = {}
+    if pc_ids:
+        try:
+            cats = models.execute_kw(
+                db, uid, key,
+                "product.public.category", "read",
+                [pc_ids], {"fields": ["name", "parent_id"]},
+            )
+            for c in cats:
+                parent = c.get("parent_id")
+                pc_name[c["id"]] = f"{parent[1]} > {c['name']}" if parent else c["name"]
+        except Exception:
+            pc_name = {}
+
+    for r in recs:
+        names = [pc_name[i] for i in (r.get("public_categ_ids") or []) if pc_name.get(i)]
+        if names:
+            out[r["id"]] = names
+    return out
+
+
 def fetch_export_extras(models, uid, product_ids):
     """
     Export-only product fields: weight, inventory category, eCommerce categories.

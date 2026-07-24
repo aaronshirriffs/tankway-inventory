@@ -26,7 +26,7 @@ MONO_FONT = "Consolas"
 def price_json(obj):
     """Pretty-print example JSON with price fields shown to 2 decimal places."""
     s = json.dumps(obj, indent=2)
-    return re.sub(r'("(?:sales_price|your_price)":\s*)(-?\d+(?:\.\d+)?)',
+    return re.sub(r'("(?:sales_price|your_price|compare_price)":\s*)(-?\d+(?:\.\d+)?)',
                   lambda m: "%s%.2f" % (m.group(1), float(m.group(2))), s)
 
 
@@ -193,19 +193,29 @@ def build_customer_guide():
     code(doc, 'curl "https://%s/v1/products?key=YOUR_API_KEY"' % API_HOST)
 
     h2(doc, "2. Get products and stock — GET /v1/products")
-    para(doc, "Returns the products visible to your key, each with current on-hand "
-              "availability grouped into the stock labels configured for your account.")
+    para(doc, "Returns the products visible to your key, each with current available "
+              "stock grouped into the stock labels configured for your account.")
+    h3(doc, "Which products appear")
+    para(doc, "Your feed contains the products in the categories enabled for your account that are also "
+              "published on the MDR website. An unpublished product will not appear, even if it is in one "
+              "of your categories. Some entries are packages / kits assembled from several components — "
+              "for those, the quantity shown is how many complete packages can currently be made from "
+              "component stock.")
     h3(doc, "Response fields")
     table(doc, ["Field", "Type", "Description"], [
         ["id", "integer", "Stable product identifier."],
         ["name", "string", "Product name."],
         ["sku", "string (nullable)", "Product SKU / internal reference."],
         ["last_updated", "string", "UTC timestamp the product was last modified."],
+        ["website_url", "string (nullable, optional)", "Link to this product's page on the MDR website, ready to use in your own listings. null if it has no public page. Only present if enabled for your key."],
+        ["portal_categories", "array (optional)", "The product's B2B / portal categories from the MDR website, each as \"Parent > Name\", e.g. [\"Lighting > Moving Heads\"]. Empty array if it isn't filed under any. Only present if enabled for your key."],
         ["sales_price", "number (optional)", "Recommended retail (list) unit price. Only present if pricing is enabled for your key."],
+        ["compare_price", "number (nullable, optional)", "The \"was\" / strike-through comparison price, for showing a saving against sales_price. null when the product has no comparison price. Only present if enabled for your key."],
+        ["has_compare_price", "boolean (optional)", "Convenience flag — true when compare_price is set, so you can branch without null-checking."],
         ["your_price", "number (optional)", "Your account's unit buy price (qty 1) under your pricelist. Only present if a pricelist is assigned to your key."],
-        ["stock", "object", "On-hand quantity by label, e.g. {\"Available Immediately\": 12}."],
-        ["availability", "array", "Same stock per label, each with a lead time: {label, qty, lead_time}."],
-        ["incoming", "array (optional)", "Confirmed stock on order, not yet received: {quantity, expected_date, label}. Only present if enabled for your key."],
+        ["stock", "object", "Available quantity by label, e.g. {\"Available Immediately\": 12}. Free to sell — stock already reserved against confirmed orders is excluded."],
+        ["availability", "array", "Same quantities per label, each with a lead time: {label, qty, lead_time}."],
+        ["incoming", "array (optional)", "Stock on a scheduled inbound delivery not yet arrived: {quantity, expected_date, label}, where expected_date is the delivery's scheduled arrival date. Only present if enabled for your key."],
     ])
 
     h3(doc, "Example response")
@@ -219,7 +229,11 @@ def build_customer_guide():
             "name": "Chauvet Maverick MK3 Spot",
             "sku": "CHV-MK3-SPOT",
             "last_updated": "2026-06-05 21:14:02",
+            "website_url": "https://www.mdrlighting.co.nz/shop/chauvet-maverick-mk3-spot-1423",
+            "portal_categories": ["Lighting > Moving Heads", "Brands > Chauvet"],
             "sales_price": 4299.00,
+            "compare_price": 4799.00,
+            "has_compare_price": True,
             "your_price": 3869.10,
             "stock": sample_stock,
             "availability": sample_avail,
@@ -232,7 +246,10 @@ def build_customer_guide():
     h3(doc, "Availability & lead times")
     para(doc, "The stock object and the availability array describe the same quantities. "
               "availability adds a lead_time per label — a short text such as \"5-7 days\"; an empty "
-              "value means the item is on hand and ready to ship.")
+              "value means the item is available now and ready to ship.")
+    para(doc, "These quantities are available (free-to-sell) stock, not raw shelf count: anything already "
+              "reserved against a confirmed order has been deducted, so the number you see is what can "
+              "actually be ordered today.")
     if labels:
         para(doc, "Stock labels currently configured:")
         table(doc, ["Stock label", "Lead time"],
@@ -240,9 +257,13 @@ def build_customer_guide():
 
     h3(doc, "Incoming stock")
     para(doc, "If incoming stock is enabled for your key, each product includes an incoming array of "
-              "confirmed purchase orders not yet received — each with a quantity, an expected_date "
-              "(YYYY-MM-DD) and a destination label. A product with nothing on order returns an empty "
-              "array. Use this to tell customers when out-of-stock items are due back in.")
+              "inbound deliveries that are scheduled but not yet received — each with a quantity, an "
+              "expected_date (YYYY-MM-DD, the delivery's scheduled arrival date) and a destination label. "
+              "A product with nothing due in returns an empty array. Use this to tell customers when "
+              "out-of-stock items are due back in.")
+    para(doc, "Only live, scheduled deliveries are listed: a cancelled delivery disappears from incoming, "
+              "and a re-planned arrival date is reflected here — so dates track the current delivery "
+              "schedule rather than the date originally ordered.")
 
     h2(doc, "3. Health check — GET /v1/status (no key required)")
     code(doc, json.dumps({"api": API_NAME, "status": "ok",
@@ -312,7 +333,10 @@ def build_internal_reference():
         ["Warehouse / location mappings", "Group warehouses and EXT partner locations under customer labels."],
         ["Pricelist", "Assign an Odoo pricelist; adds your_price (customer buy price, qty 1) per product."],
         ["Show price", "Include sales_price (list price) in the response."],
-        ["Show incoming stock", "Include the incoming array (confirmed POs not yet received). Off by default."],
+        ["Show compare price", "Include compare_price + has_compare_price (the \"was\"/strike-through price). Off by default."],
+        ["Show website URL", "Include website_url, the product's public page on the MDR website. Off by default."],
+        ["Show B2B portal categories", "Include portal_categories — the website portal categories as [\"Parent > Name\"]. Same data as the export's \"B2B portal category/s\" column. Off by default."],
+        ["Show incoming stock", "Include the incoming array (scheduled inbound deliveries not yet received; cancelled ones excluded). Off by default."],
         ["Expiry", "Optional date after which the key stops working."],
         ["Rate limits", "Per-minute, burst, daily caps (defaults below)."],
     ])
@@ -363,18 +387,25 @@ def build_internal_reference():
             "incoming": [
                 {"quantity": 20, "expected_date": "2026-06-15", "label": "Auckland"},
             ],
+            "website_url": "https://www.mdrlighting.co.nz/shop/example-product-1423",
             "sales_price": 499.0,
+            "compare_price": 599.0,
+            "has_compare_price": True,
             "your_price": 449.10,
         }],
     }))
     para(doc, "incoming is present only when 'Show incoming stock' is enabled for the key "
-              "(empty array when nothing is on order); label maps the destination warehouse to the "
-              "key's customer-facing label, falling back to \"Incoming\".", italic=True, color="666666")
+              "(empty array when nothing is due in); label maps the destination warehouse to the "
+              "key's customer-facing label, falling back to \"Incoming\". It is built from scheduled "
+              "inbound deliveries, so a cancelled delivery drops out and a re-planned date is reflected. "
+              "website_url / compare_price + has_compare_price appear only when their toggles are on; "
+              "stock is available (free-to-sell) quantity, excluding stock reserved against confirmed orders.",
+              italic=True, color="666666")
 
     h2(doc, "7. Admin sidebar pages")
     table(doc, ["Page", "Purpose"], [
         ["API Keys", "Manage per-customer keys."],
-        ["Activity Log", "Recent API requests across all keys (in-memory)."],
+        ["Activity Log", "Per-customer API usage summary; click a customer for recent requests. Persisted across restarts."],
         ["Status", "Service health, Odoo connectivity, counts."],
         ["Warehouses", "Global labels + lead times per source."],
         ["Categories", "Curate available categories."],

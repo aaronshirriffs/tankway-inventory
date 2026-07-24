@@ -162,6 +162,10 @@
               <span class="tl">Show website URL <span class="muted">(link to the MDR product page)</span></span>
               <label class="switch"><input type="checkbox" name="show_website_url" {{ 'checked' if key and key.show_website_url else '' }}><span class="track"></span></label>
             </div>
+            <div class="toggle-row">
+              <span class="tl">Show B2B portal categories <span class="muted">(portal_categories)</span></span>
+              <label class="switch"><input type="checkbox" name="show_portal_categories" {{ 'checked' if key and key.show_portal_categories else '' }}><span class="track"></span></label>
+            </div>
             <div class="toggle-row off-feature">
               <span class="tl">Show last updated <span class="muted">(always included)</span></span>
               <label class="switch"><input type="checkbox" checked disabled><span class="track"></span></label>

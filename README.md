@@ -160,7 +160,7 @@ certbot certificates
 certbot renew --dry-run
 ```
 
-**Backups:** the only stateful file is **`keys.json`** — back it up if you have keys provisioned. Everything else is code/config.
+**Backups:** the only stateful file that is *not* in git is **`keys.json`** (it holds customer API tokens, so it is deliberately gitignored). Grab it via **Settings → Download config backup** and keep a copy off this server. See §9.
 
 ---
 
@@ -171,3 +171,58 @@ certbot renew --dry-run
 - Odoo credentials live only in `.env` and never reach the public surface.
 - **TLS:** Let's Encrypt cert for `api.mdrlighting.co.nz` is installed and **auto-renews** (expires 2026-09-04; Certbot timer handles renewal).
 - API keys are bearer secrets — distribute over secure channels, and **disable rather than delete** if you want to keep a key's history/activity available until you're sure.
+
+---
+
+## 9. Rebuild from scratch (disaster recovery)
+
+What restores from where:
+
+| Piece | Source |
+|---|---|
+| Application code + templates + global settings JSONs | **this GitHub repo** |
+| systemd unit, nginx config | **`deploy/`** in this repo |
+| Required env var *names* | **`.env.example`** |
+| `keys.json` (customer tokens + per-customer config) | **config backup** — Settings → Download config backup. *Not in git.* |
+| Odoo API key, `TANKWAY_SECRET_KEY` | your password manager |
+| `gmail_token.json` (email export) | re-mint with `auth_setup_export.py` |
+
+**Steps**
+
+```bash
+# 1. Code
+apt install -y python3-venv nginx
+git clone git@github.com:aaronshirriffs/tankway-inventory.git /root/inventory
+cd /root/inventory && python3 -m venv venv && venv/bin/pip install -r requirements.txt
+
+# 2. Secrets
+cp .env.example .env && chmod 600 .env     # fill in the Odoo values
+#    TANKWAY_SECRET_KEY lives in /etc/tankway/shared.env (shared with the hub)
+
+# 3. Restore customer keys (from the config backup .tar.gz)
+tar xzf mdr-inventory-config-YYYYMMDD-HHMM.tar.gz -C /root/inventory
+
+# 4. Service
+cp deploy/inventory.service /etc/systemd/system/
+mkdir -p /etc/systemd/system/inventory.service.d
+cp deploy/inventory.service.d-gunicorn.conf /etc/systemd/system/inventory.service.d/gunicorn.conf
+systemctl daemon-reload && systemctl enable --now inventory.service
+
+# 5. nginx + TLS
+cp deploy/nginx-mdr-api.conf /etc/nginx/sites-available/mdr-api
+ln -s /etc/nginx/sites-available/mdr-api /etc/nginx/sites-enabled/
+#    paste deploy/nginx-inventory-location.conf into the tools.tankway.co.nz server block
+nginx -t && systemctl reload nginx
+certbot --nginx -d api.mdrlighting.co.nz    # only once DNS points at the new server
+
+# 6. Verify
+curl https://api.mdrlighting.co.nz/v1/status
+```
+
+**Without the config backup** the app still runs, but every customer key and its
+configuration is gone — you would have to reissue tokens to all customers. Take a
+config backup whenever you add or materially change a key.
+
+> Whole-server recovery (OS, other apps, certs) is *not* covered by this repo —
+> that is what DigitalOcean droplet backups/snapshots are for. This repo restores
+> **this application**.
